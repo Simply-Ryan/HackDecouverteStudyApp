@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Detail</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    {% include 'base.html' %}
+    <div class="container">
+        <h1>{{ session.title }}</h1>
+        <p><strong>Type:</strong> {{ session.type }}</p>
+        <p><strong>Location:</strong> {{ session.location }}</p>
+        <p><strong>Meeting Link:</strong> <a href="{{ session.meeting_link }}">{{ session.meeting_link }}</a></p>
+        <p><strong>Date and Time:</strong> {{ session.date_time }}</p>
+        
+        <h2>Participants</h2>
+        <ul>
+            {% for participant in session.participants %}
+                <li>{{ participant.name }} ({{ participant.email }})</li>
+            {% endfor %}
+        </ul>
+
+        <h2>RSVP</h2>
+        <form action="{{ url_for('rsvp', session_id=session.id) }}" method="POST">
+            <input type="hidden" name="user_id" value="{{ user.id }}">
+            <button type="submit">RSVP</button>
+        </form>
+
+        <div id="reminder">
+            <p>Reminder: You will be notified 1 hour before the session starts.</p>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

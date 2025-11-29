@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Session App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Welcome to the Study Session App</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('create_session') }}">Create a Study Session</a></li>
+                <li><a href="{{ url_for('my_sessions') }}">My Sessions</a></li>
+                <li><a href="{{ url_for('login') }}">Login</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section>
+            <h2>Upcoming Study Sessions</h2>
+            <ul>
+                {% for session in sessions %}
+                    <li>
+                        <a href="{{ url_for('session_detail', session_id=session.id) }}">{{ session.title }}</a> - {{ session.type }} - {{ session.date }}
+                    </li>
+                {% else %}
+                    <li>No upcoming sessions available.</li>
+                {% endfor %}
+            </ul>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; {{ current_year }} Study Session App</p>
+    </footer>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
