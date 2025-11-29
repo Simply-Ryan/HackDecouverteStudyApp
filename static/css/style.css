@@ -1,4 +1,22 @@
-/* Reset and Base Styles */
+/* ============================================
+   TABLE OF CONTENTS
+   ============================================
+   1. Reset and Base Styles
+   2. Layout & Navigation
+   3. Buttons
+   4. Alerts & Notifications
+   5. Hero Section
+   6. Session Cards & Grid
+   7. Forms
+   8. Session Detail Page
+   9. Study Room Chat
+   10. Animations
+   11. Responsive Design
+   ============================================ */
+
+/* ============================================
+   1. RESET AND BASE STYLES
+   ============================================ */
 * {
     margin: 0;
     padding: 0;
@@ -19,7 +37,11 @@ body {
     padding: 0 20px;
 }
 
-/* Navbar */
+/* ============================================
+   2. LAYOUT & NAVIGATION
+   ============================================ */
+
+/* Navbar - Sticky header with navigation */
 .navbar {
     background: #fad6a5;
     padding: 1rem 0;
@@ -61,7 +83,11 @@ body {
     background: #f0f0f0;
 }
 
-/* Buttons */
+/* ============================================
+   3. BUTTONS
+   ============================================ */
+
+/* Button base styles - Primary, Secondary, and Large variants */
 .btn-primary, .btn-secondary, .btn-large {
     display: inline-block;
     padding: 0.75rem 1.5rem;
@@ -108,7 +134,11 @@ body {
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 }
 
-/* Alerts */
+/* ============================================
+   4. ALERTS & NOTIFICATIONS
+   ============================================ */
+
+/* Alert messages for user feedback */
 .alerts {
     margin: 1rem 0;
 }
@@ -133,7 +163,11 @@ body {
     }
 }
 
-/* Hero Section */
+/* ============================================
+   5. HERO SECTION
+   ============================================ */
+
+/* Landing page hero banner */
 .hero {
     background: white;
     padding: 3rem 2rem;
@@ -155,7 +189,11 @@ body {
     margin-bottom: 2rem;
 }
 
-/* Sessions List */
+/* ============================================
+   6. SESSION CARDS & GRID
+   ============================================ */
+
+/* Session list container */
 .sessions-list {
     background: white;
     padding: 2rem;
@@ -176,6 +214,7 @@ body {
     gap: 1.5rem;
 }
 
+/* Individual session card */
 .session-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     padding: 1.5rem;
@@ -185,7 +224,7 @@ body {
     position: relative;
 }
 
-/* Subject-based color coding */
+/* Subject-based color coding - Each subject has unique gradient */
 .session-card.subject-mathematics { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 .session-card.subject-physics { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
 .session-card.subject-chemistry { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
@@ -198,6 +237,7 @@ body {
 .session-card.subject-literature { background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%); }
 .session-card.subject-general { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 
+/* Subject badge on cards */
 .subject-badge {
     display: inline-block;
     background: rgba(255, 255, 255, 0.3);
@@ -218,10 +258,12 @@ body {
     font-size: 1.3rem;
 }
 
+/* Session metadata */
 .session-info {
     margin: 1rem 0;
 }
 
+/* Generic badge styling */
 .badge {
     display: inline-block;
     padding: 0.3rem 0.8rem;
@@ -231,6 +273,7 @@ body {
     margin-bottom: 0.5rem;
 }
 
+/* Empty state messaging */
 .empty-state {
     text-align: center;
     color: #999;
@@ -238,7 +281,11 @@ body {
     padding: 2rem;
 }
 
-/* Form Styles */
+/* ============================================
+   7. FORMS
+   ============================================ */
+
+/* Form container and styling */
 .form-container {
     background: white;
     padding: 2rem;
@@ -284,7 +331,11 @@ body {
     border-color: #667eea;
 }
 
-/* Session Detail */
+/* ============================================
+   8. SESSION DETAIL PAGE
+   ============================================ */
+
+/* Session detail container */
 .session-detail {
     background: white;
     padding: 2rem;
@@ -307,18 +358,21 @@ body {
     font-size: 2rem;
 }
 
+/* Badge container in header */
 .header-badges {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
 }
 
+/* Subject badge in detail page */
 .badge-subject {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     font-weight: 600;
 }
 
+/* Information display box */
 .info-box {
     background: #f8f9fa;
     padding: 1rem;
@@ -332,12 +386,13 @@ body {
     margin-bottom: 0.5rem;
 }
 
+/* Meeting/location links */
 .link {
     color: #667eea;
     word-break: break-all;
 }
 
-/* RSVP Section */
+/* --- RSVP Section --- */
 .rsvp-section {
     margin: 2rem 0;
     padding: 1.5rem;
@@ -366,7 +421,7 @@ body {
     flex: 1;
 }
 
-/* Participants */
+/* --- Participants Section --- */
 .participants-section {
     margin: 2rem 0;
 }
@@ -390,7 +445,11 @@ body {
     border-left: 4px solid #667eea;
 }
 
-/* Study Room Chat */
+/* ============================================
+   9. STUDY ROOM CHAT
+   ============================================ */
+
+/* Chat section container */
 .study-room-chat {
     margin: 2rem 0;
     padding: 2rem;
@@ -404,12 +463,14 @@ body {
     margin-bottom: 0.5rem;
 }
 
+/* Chat section description */
 .chat-description {
     color: #666;
     margin-bottom: 1.5rem;
     font-size: 0.95rem;
 }
 
+/* Messages scrollable container */
 .messages-container {
     max-height: 400px;
     overflow-y: auto;
@@ -419,6 +480,7 @@ body {
     margin-bottom: 1.5rem;
 }
 
+/* Individual message bubble */
 .message-bubble {
     background: white;
     padding: 1rem;
@@ -429,6 +491,7 @@ body {
     animation: slideInMessage 0.3s;
 }
 
+/* Message slide-in animation */
 @keyframes slideInMessage {
     from {
         transform: translateX(-20px);
@@ -440,6 +503,7 @@ body {
     }
 }
 
+/* Message header with sender and time */
 .message-header {
     display: flex;
     justify-content: space-between;
@@ -457,12 +521,14 @@ body {
     font-size: 0.8rem;
 }
 
+/* Message content */
 .message-text {
     color: #333;
     line-height: 1.5;
     word-wrap: break-word;
 }
 
+/* Message submission form */
 .message-form {
     display: flex;
     flex-direction: column;
@@ -496,7 +562,7 @@ body {
     border-color: #667eea;
 }
 
-/* Reminder Box */
+/* --- Reminder System --- */
 .reminder-box {
     margin: 2rem 0;
     padding: 1.5rem;
@@ -513,6 +579,7 @@ body {
     margin-bottom: 1rem;
 }
 
+/* Reminder notification display */
 #reminderNotification {
     margin-top: 1rem;
     padding: 1rem;
@@ -521,12 +588,21 @@ body {
     animation: fadeIn 0.5s;
 }
 
+/* ============================================
+   10. ANIMATIONS
+   ============================================ */
+
+/* Fade in animation */
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
 }
 
-/* Responsive Design */
+/* ============================================
+   11. RESPONSIVE DESIGN
+   ============================================ */
+
+/* Mobile and tablet adjustments */
 @media (max-width: 768px) {
     .navbar .container {
         flex-direction: column;
@@ -549,4 +625,17 @@ body {
     .rsvp-form {
         flex-direction: column;
     }
+    
+    /* Mobile chat adjustments */
+    .message-input-group {
+        flex-direction: column;
+    }
+    
+    .message-textarea {
+        width: 100%;
+    }
 }
+
+/* ============================================
+   END OF STYLESHEET
+   ============================================ */
