@@ -1,44 +1,51 @@
-// This file contains JavaScript code for client-side functionality, such as handling form submissions, displaying reminders, and managing session interactions.
-
+// Dynamic form handling for session type
 document.addEventListener('DOMContentLoaded', function() {
-    const rsvpForms = document.querySelectorAll('.rsvp-form');
+    const sessionTypeSelect = document.getElementById('session_type');
+    const meetingLinkGroup = document.getElementById('meetingLinkGroup');
+    const locationGroup = document.getElementById('locationGroup');
     
-    rsvpForms.forEach(form => {
-        form.addEventListener('submit', function(event) {
-            event.preventDefault();
-            const sessionId = this.dataset.sessionId;
-            const rsvpStatus = this.querySelector('input[name="rsvp"]:checked').value;
-
-            fetch(`/rsvp/${sessionId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ rsvp: rsvpStatus }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('RSVP submitted successfully!');
-                } else {
-                    alert('Error submitting RSVP. Please try again.');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+    if (sessionTypeSelect) {
+        sessionTypeSelect.addEventListener('change', function() {
+            if (this.value === 'remote') {
+                meetingLinkGroup.style.display = 'block';
+                locationGroup.style.display = 'none';
+            } else if (this.value === 'in-person') {
+                meetingLinkGroup.style.display = 'none';
+                locationGroup.style.display = 'block';
+            } else {
+                meetingLinkGroup.style.display = 'none';
+                locationGroup.style.display = 'none';
+            }
         });
-    });
-
-    const reminderButtons = document.querySelectorAll('.set-reminder');
+    }
     
-    reminderButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const sessionId = this.dataset.sessionId;
-            const reminderTime = this.dataset.reminderTime;
-
-            // Simulate setting a reminder
-            alert(`Reminder set for session ID ${sessionId} at ${reminderTime}`);
+    // Test reminder button
+    const testReminderBtn = document.getElementById('testReminder');
+    const reminderNotification = document.getElementById('reminderNotification');
+    
+    if (testReminderBtn && reminderNotification) {
+        testReminderBtn.addEventListener('click', function() {
+            // Simulate a reminder notification
+            reminderNotification.innerHTML = `
+                <strong>🔔 Reminder Sent!</strong><br>
+                "Don't forget your study session is coming up soon!"<br>
+                <small>Sent at ${new Date().toLocaleTimeString()}</small>
+            `;
+            reminderNotification.style.display = 'block';
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                reminderNotification.style.display = 'none';
+            }, 5000);
         });
+    }
+    
+    // Auto-hide alerts after 5 seconds
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 300);
+        }, 5000);
     });
 });

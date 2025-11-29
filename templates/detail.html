@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{{ session.title }} - Study Session{% endblock %}
+
+{% block content %}
+<div class="session-detail">
+    <div class="detail-header">
+        <h1>{{ session.title }}</h1>
+        <span class="badge badge-{{ session.session_type }}">
+            {{ '🌐 Remote' if session.session_type == 'remote' else '📍 In-Person' }}
+        </span>
+    </div>
+
+    <div class="detail-info">
+        {% if session.session_type == 'remote' and session.meeting_link %}
+            <div class="info-box">
+                <strong>Meeting Link:</strong>
+                <a href="{{ session.meeting_link }}" target="_blank" class="link">{{ session.meeting_link }}</a>
+            </div>
+        {% elif session.session_type == 'in-person' and session.location %}
+            <div class="info-box">
+                <strong>Location:</strong>
+                <span>📍 {{ session.location }}</span>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="rsvp-section">
+        <h2>RSVP to this Session</h2>
+        <form method="POST" class="rsvp-form">
+            <div class="form-group">
+                <input type="text" name="participant_name" placeholder="Your name" required>
+                <button type="submit" class="btn-primary">RSVP</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="participants-section">
+        <h2>Participants ({{ rsvps|length }})</h2>
+        {% if rsvps %}
+            <ul class="participant-list">
+                {% for rsvp in rsvps %}
+                    <li>👤 {{ rsvp.participant_name }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty-state">No participants yet. Be the first to RSVP!</p>
+        {% endif %}
+    </div>
+
+    <div class="reminder-box">
+        <h3>⏰ Reminder System</h3>
+        <p>Session reminders will be sent automatically to all participants!</p>
+        <button id="testReminder" class="btn-secondary">Test Reminder</button>
+        <div id="reminderNotification" style="display: none;"></div>
+    </div>
+</div>
+{% endblock %}

@@ -1,39 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Session App</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <header>
-        <h1>Welcome to the Study Session App</h1>
-        <nav>
-            <ul>
-                <li><a href="{{ url_for('create_session') }}">Create a Study Session</a></li>
-                <li><a href="{{ url_for('my_sessions') }}">My Sessions</a></li>
-                <li><a href="{{ url_for('login') }}">Login</a></li>
-            </ul>
-        </nav>
-    </header>
-    <main>
-        <section>
-            <h2>Upcoming Study Sessions</h2>
-            <ul>
-                {% for session in sessions %}
-                    <li>
-                        <a href="{{ url_for('session_detail', session_id=session.id) }}">{{ session.title }}</a> - {{ session.type }} - {{ session.date }}
-                    </li>
-                {% else %}
-                    <li>No upcoming sessions available.</li>
-                {% endfor %}
-            </ul>
-        </section>
-    </main>
-    <footer>
-        <p>&copy; {{ current_year }} Study Session App</p>
-    </footer>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Home - Study Sessions{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>Welcome to Study Session Manager</h1>
+    <p>Organize and join study sessions with your peers</p>
+    <a href="{{ url_for('create') }}" class="btn-large">Create New Session</a>
+</div>
+
+<section class="sessions-list">
+    <h2>Available Study Sessions</h2>
+    
+    {% if sessions %}
+        <div class="session-grid">
+            {% for session in sessions %}
+            <div class="session-card">
+                <h3>{{ session.title }}</h3>
+                <div class="session-info">
+                    <span class="badge badge-{{ session.session_type }}">
+                        {{ '🌐 Remote' if session.session_type == 'remote' else '📍 In-Person' }}
+                    </span>
+                    {% if session.session_type == 'remote' and session.meeting_link %}
+                        <p>🔗 Meeting available</p>
+                    {% elif session.session_type == 'in-person' and session.location %}
+                        <p>📍 {{ session.location }}</p>
+                    {% endif %}
+                </div>
+                <a href="{{ url_for('detail', session_id=session.id) }}" class="btn-secondary">View Details</a>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="empty-state">No study sessions yet. Be the first to create one!</p>
+    {% endif %}
+</section>
+{% endblock %}

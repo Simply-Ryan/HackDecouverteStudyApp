@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Create Session{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h1>Create Study Session</h1>
+    
+    <form method="POST" action="{{ url_for('create') }}" id="createForm">
+        <div class="form-group">
+            <label for="title">Session Title *</label>
+            <input type="text" id="title" name="title" required 
+                   placeholder="e.g., Calculus Study Group">
+        </div>
+
+        <div class="form-group">
+            <label for="session_type">Session Type *</label>
+            <select id="session_type" name="session_type" required>
+                <option value="">Select type...</option>
+                <option value="remote">Remote</option>
+                <option value="in-person">In-Person</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="meetingLinkGroup" style="display: none;">
+            <label for="meeting_link">Meeting Link</label>
+            <input type="url" id="meeting_link" name="meeting_link" 
+                   placeholder="https://zoom.us/j/...">
+        </div>
+
+        <div class="form-group" id="locationGroup" style="display: none;">
+            <label for="location">Location</label>
+            <input type="text" id="location" name="location" 
+                   placeholder="e.g., Library Room 204">
+        </div>
+
+        <button type="submit" class="btn-large">Create Session</button>
+    </form>
+</div>
+{% endblock %}
