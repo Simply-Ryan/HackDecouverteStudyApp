@@ -4,8 +4,8 @@
 
 {% block content %}
 <div class="hero">
-    <h1>Welcome to StudyFlow</h1>
-    <p>Organize and join study sessions with your peers</p>
+    <h1>Welcome to StudyFlow for HackDécouverte</h1>
+    <p>Organize and join study sessions with other students!</p>
     {% if 'user_id' in session %}
         <a href="{{ url_for('create') }}" class="btn-large">Create New Session</a>
     {% else %}
@@ -65,7 +65,7 @@
 {% endif %}
 
 <section class="sessions-list">
-    <h2>Available Study Sessions</h2>
+    <h2>Public Study Sessions</h2>
     
     <div class="filter-search-container">
         <div class="filter-form">

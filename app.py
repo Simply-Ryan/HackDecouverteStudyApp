@@ -1,3 +1,5 @@
+# Main app redirection file. MESSY SO WATCH OUT
+
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
 import sqlite3
 import os
@@ -9,7 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 
 app = Flask(__name__)
-app.secret_key = 'f47cba5d7844e3b4cc01994acb8de040c559faf14e9284d5530eeb02055d150b'
+app.secret_key = 'f47cba5d7844e3b4cc01994acb8de040c559faf14e9284d5530eeb02055d150b' # Generated. Important according to StackOverflow
 
 DATABASE = 'sessions.db'
 UPLOAD_FOLDER = 'uploads'
@@ -90,7 +92,7 @@ def index():
     search_query = request.args.get('search', '').strip()
     subject_filter = request.args.get('subject', '').strip()
     
-    # build SQL query dynamically based on filters
+    # build SQL query dynaMically based on filters
     query = '''
         SELECT s.*, u.full_name as creator_name 
         FROM sessions s
