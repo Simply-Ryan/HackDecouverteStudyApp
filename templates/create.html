@@ -31,6 +31,27 @@
         </div>
 
         <div class="form-group">
+            <label for="session_date_input">Session Date *</label>
+            <input type="date" id="session_date_input" name="session_date_input" required>
+        </div>
+
+        <div class="form-group">
+            <label for="session_time_input">Session Time *</label>
+            <input type="time" id="session_time_input" name="session_time_input" required>
+            <small>Select when your study session will start</small>
+        </div>
+        
+        <!-- Hidden field to store combined datetime -->
+        <input type="hidden" id="session_date" name="session_date">
+
+        <div class="form-group">
+            <label for="max_participants">Max Participants</label>
+            <input type="number" id="max_participants" name="max_participants" 
+                   value="10" min="2" max="100" placeholder="10">
+            <small>Maximum number of people who can join (2-100)</small>
+        </div>
+
+        <div class="form-group">
             <label for="session_type">Session Type *</label>
             <select id="session_type" name="session_type" required>
                 <option value="">Select type...</option>

@@ -1,5 +1,27 @@
 // Dynamic form handling for session type
 document.addEventListener('DOMContentLoaded', function() {
+    // Set minimum date for session creation (today)
+    const sessionDateInput = document.getElementById('session_date_input');
+    if (sessionDateInput) {
+        const today = new Date().toISOString().split('T')[0];
+        sessionDateInput.min = today;
+    }
+    
+    // Combine date and time inputs before form submission
+    const createForm = document.getElementById('createForm');
+    if (createForm) {
+        createForm.addEventListener('submit', function(e) {
+            const dateInput = document.getElementById('session_date_input');
+            const timeInput = document.getElementById('session_time_input');
+            const hiddenDatetime = document.getElementById('session_date');
+            
+            if (dateInput && timeInput && hiddenDatetime) {
+                // Combine date and time into datetime-local format
+                hiddenDatetime.value = dateInput.value + ' ' + timeInput.value;
+            }
+        });
+    }
+    
     const sessionTypeSelect = document.getElementById('session_type');
     const meetingLinkGroup = document.getElementById('meetingLinkGroup');
     const locationGroup = document.getElementById('locationGroup');

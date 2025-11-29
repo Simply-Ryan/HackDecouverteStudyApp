@@ -14,6 +14,14 @@
         </div>
     </div>
 
+    {% if session.session_date %}
+        <div class="session-datetime">
+            <h3>📅 Scheduled For</h3>
+            <p class="datetime-display">{{ session.session_date|replace('T', ' at ') }}</p>
+            <p class="countdown-display">{{ format_time_remaining(session.session_date) }}</p>
+        </div>
+    {% endif %}
+
     <div class="detail-info">
         {% if session.session_type == 'remote' and session.meeting_link %}
             <div class="info-box">
@@ -30,16 +38,37 @@
 
     <div class="rsvp-section">
         <h2>RSVP to this Session</h2>
-        <form method="POST" class="rsvp-form">
-            <div class="form-group">
-                <input type="text" name="participant_name" placeholder="Your name" required>
-                <button type="submit" class="btn-primary">RSVP</button>
+        
+        <div class="capacity-indicator">
+            <div class="capacity-text">
+                <span class="capacity-numbers">{{ current_count }} / {{ max_participants }} spots filled</span>
+                {% if is_full %}
+                    <span class="capacity-full">🔴 Session Full</span>
+                {% elif spots_left <= 3 %}
+                    <span class="capacity-warning">⚠️ Only {{ spots_left }} spots left!</span>
+                {% else %}
+                    <span class="capacity-available">✅ {{ spots_left }} spots available</span>
+                {% endif %}
             </div>
-        </form>
+            <div class="capacity-bar">
+                <div class="capacity-progress" style="width: {{ (current_count / max_participants * 100)|int }}%"></div>
+            </div>
+        </div>
+        
+        {% if not is_full %}
+            <form method="POST" class="rsvp-form">
+                <div class="form-group">
+                    <input type="text" name="participant_name" placeholder="Your name" required>
+                    <button type="submit" class="btn-primary">RSVP</button>
+                </div>
+            </form>
+        {% else %}
+            <p class="full-message">This session has reached maximum capacity.</p>
+        {% endif %}
     </div>
 
     <div class="participants-section">
-        <h2>Participants ({{ rsvps|length }})</h2>
+        <h2>Participants ({{ current_count }} / {{ max_participants }})</h2>
         {% if rsvps %}
             <ul class="participant-list">
                 {% for rsvp in rsvps %}

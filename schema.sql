@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     location TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     session_date DATETIME,
+    max_participants INTEGER DEFAULT 10,
     reminder_sent INTEGER DEFAULT 0
 );
 
