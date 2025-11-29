@@ -1,4 +1,58 @@
 /* ============================================
+   FILTER & SEARCH BAR STYLES
+   ============================================ */
+
+.filter-search-container {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    margin-top: -4rem;
+    gap: 1rem;
+}
+
+.filter-form {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.search-input {
+    padding: 0.5rem 1rem;
+    border: 1.5px solid #000000;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #fff;
+    color: #333;
+    transition: border-color 0.3s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.subject-filter {
+    padding: 0.5rem 1rem;
+    border: 1.5px solid #000000;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #fff;
+    color: #333;
+    transition: border-color 0.3s;
+}
+
+.subject-filter:focus {
+    outline: none;
+    border-color: #667eea;
+}
+/* ============================================
    TABLE OF CONTENTS
    ============================================
    1. Reset and Base Styles
@@ -229,6 +283,7 @@ body {
     border: 2px solid;
     margin: 1rem 0;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    color: black 
 }
 
 .sessions-list h2 {
@@ -297,6 +352,7 @@ body {
 .session-card h3 {
     margin-bottom: 1rem;
     font-size: 1.3rem;
+    color: black
 }
 
 /* Session time display */

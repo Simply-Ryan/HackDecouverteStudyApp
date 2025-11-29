@@ -5,10 +5,8 @@ DATABASE = 'sessions.db'
 
 def reset_database():
     """
-    Completely resets the database by:
-    1. Backing up the current database (optional safety)
-    2. Deleting the database file
-    3. Recreating it with the schema
+    Reset database - wipes all data but keeps structure
+    Steps: delete db file, then recreate from schema
     """
     
     # Check if database exists
@@ -16,7 +14,7 @@ def reset_database():
         print(f"Found existing database: {DATABASE}")
         
         # Ask for confirmation
-        response = input("⚠️  WARNING: This will delete ALL data (users, sessions, messages, etc.)!\nAre you sure? Type 'YES' to confirm: ")
+        response = input("WARNING: This will delete ALL data (users, sessions, messages, etc.)!\nAre you sure? Type 'YES' to confirm: ")
         
         if response != 'YES':
             print("Reset cancelled.")
@@ -25,7 +23,7 @@ def reset_database():
         # Delete the database file
         try:
             os.remove(DATABASE)
-            print(f"✓ Deleted {DATABASE}")
+            print(f"Deleted {DATABASE}")
         except Exception as e:
             print(f"Error deleting database: {e}")
             return
@@ -38,9 +36,9 @@ def reset_database():
     conn.commit()
     conn.close()
     
-    print("✓ Database reset successfully!")
-    print("✓ All tables recreated with structure intact")
-    print("✓ All data has been wiped clean")
+    print("Database reset successfully!")
+    print("All tables recreated with structure intact")
+    print("All data has been wiped clean")
 
 if __name__ == '__main__':
     reset_database()

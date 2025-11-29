@@ -17,11 +17,11 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xls', 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
-# Create upload folder if it doesn't exist
+# need to create uploads folder for file storage
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# Login required decorator
+# decorator to protect routes that need authentication
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -31,9 +31,9 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Helper function to format session dates
+# helper to show countdown to session
 def format_time_remaining(session_date_str):
-    """Calculate time remaining until session and return formatted string"""
+    """calculate how much time until session starts"""
     if not session_date_str:
         return None
     
@@ -62,11 +62,11 @@ def format_time_remaining(session_date_str):
 app.jinja_env.globals.update(format_time_remaining=format_time_remaining)
 
 def allowed_file(filename):
-    """Check if file extension is allowed"""
+    """check if uploaded file type is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def get_file_size_str(size_bytes):
-    """Convert bytes to human readable format"""
+    """convert bytes to readable size (KB, MB, etc)"""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size_bytes < 1024.0:
             return f"{size_bytes:.1f} {unit}"
@@ -84,11 +84,11 @@ def get_db():
 def index():
     conn = get_db()
     
-    # Get filter parameters
+    # grab search and filter params from URL
     search_query = request.args.get('search', '').strip()
     subject_filter = request.args.get('subject', '').strip()
     
-    # Build dynamic query with filters
+    # build SQL query dynamically based on filters
     query = '''
         SELECT s.*, u.full_name as creator_name 
         FROM sessions s
@@ -109,7 +109,7 @@ def index():
     
     sessions_query = conn.execute(query, params).fetchall()
     
-    # Get user's invitations if logged in
+    # fetch user invitations if they're logged in
     invitations = []
     reminders = []
     if 'user_id' in session:
@@ -121,7 +121,7 @@ def index():
             WHERE i.invitee_id = ? AND i.status = 'pending'
         ''', (session['user_id'],)).fetchall()
         
-        # Get reminders for sessions the user has RSVP'd to (excluding dismissed ones)
+        # grab reminders for RSVP'd sessions (skip dismissed ones)
         reminders = conn.execute('''
             SELECT r.id, r.session_id, r.reminder_text, r.created_at,
                    s.title as session_title, u.full_name as sender_name
@@ -150,7 +150,7 @@ def register():
         full_name = request.form['full_name']
         
         conn = get_db()
-        # Check if username or email already exists
+        # make sure username/email isn't already taken
         existing_user = conn.execute('SELECT id FROM users WHERE username = ? OR email = ?', 
                                      (username, email)).fetchone()
         
@@ -214,7 +214,7 @@ def create():
                      (title, session_type, subject, session_date, max_participants, meeting_link, location, session['user_id']))
         session_id = cursor.lastrowid
         
-        # Automatically RSVP the creator
+        # auto-RSVP the creator to their own session
         conn.execute('INSERT INTO rsvps (session_id, user_id) VALUES (?, ?)',
                      (session_id, session['user_id']))
         conn.commit()
@@ -234,7 +234,7 @@ def detail(session_id):
         WHERE s.id = ?
     ''', (session_id,)).fetchone()
     
-    # Check if session exists
+    # verify session exists
     if not study_session:
         conn.close()
         flash('Session not found!')
@@ -249,11 +249,11 @@ def detail(session_id):
     
     if request.method == 'POST':
         if 'rsvp' in request.form and 'user_id' in session:
-            # Check if session is full
+            # check if capacity reached
             current_count = len(rsvps)
             max_participants = study_session['max_participants'] if study_session['max_participants'] else 10
             
-            # Check if user already RSVP'd
+            # prevent duplicate RSVPs
             user_rsvp = conn.execute('SELECT id FROM rsvps WHERE session_id = ? AND user_id = ?',
                                     (session_id, session['user_id'])).fetchone()
             
@@ -276,7 +276,7 @@ def detail(session_id):
         ORDER BY m.created_at ASC
     ''', (session_id,)).fetchall()
     
-    # Get uploaded files for this session
+    # fetch all files uploaded to this session
     files = conn.execute('''
         SELECT f.*, u.full_name, u.username
         FROM files f
@@ -285,7 +285,7 @@ def detail(session_id):
         ORDER BY f.uploaded_at DESC
     ''', (session_id,)).fetchall()
     
-    # Get all users for invitation dropdown (exclude already invited/RSVP'd users)
+    # get users for invite dropdown (exclude already invited/joined)
     all_users = []
     if 'user_id' in session and study_session['creator_user_id'] == session['user_id']:
         rsvp_user_ids = [r['user_id'] for r in rsvps]
@@ -303,13 +303,13 @@ def detail(session_id):
     
     conn.close()
     
-    # Calculate capacity info
+    # calculate spots remaining
     current_count = len(rsvps)
     max_participants = study_session['max_participants'] if study_session['max_participants'] else 10
     is_full = current_count >= max_participants
     spots_left = max_participants - current_count
     
-    # Check if current user has RSVP'd
+    # check if logged in user has RSVP'd
     user_has_rsvp = False
     if 'user_id' in session:
         user_has_rsvp = any(r['user_id'] == session['user_id'] for r in rsvps)
@@ -374,14 +374,14 @@ def delete_session(session_id):
                                  (session_id,)).fetchone()
     
     if study_session and study_session['creator_id'] == session['user_id']:
-        # Delete uploaded files first
+        # remove uploaded files from disk first
         files = conn.execute('SELECT filename FROM files WHERE session_id = ?', (session_id,)).fetchall()
-        for file in files:
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file['filename'])
+        for file_record in files:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_record['filename'])
             if os.path.exists(file_path):
                 os.remove(file_path)
         
-        # Delete related records (foreign key constraints)
+        # clean up database records
         conn.execute('DELETE FROM files WHERE session_id = ?', (session_id,))
         conn.execute('DELETE FROM messages WHERE session_id = ?', (session_id,))
         conn.execute('DELETE FROM rsvps WHERE session_id = ?', (session_id,))
@@ -430,13 +430,13 @@ def dismiss_reminder(reminder_id):
     conn = get_db()
     
     try:
-        # Insert into dismissed_reminders to mark it as dismissed for this user
+        # mark reminder as dismissed for this user
         conn.execute('INSERT INTO dismissed_reminders (reminder_id, user_id) VALUES (?, ?)',
                    (reminder_id, session['user_id']))
         conn.commit()
         flash('Reminder dismissed')
     except sqlite3.IntegrityError:
-        # Already dismissed
+        # reminder already dismissed
         pass
     
     conn.close()
@@ -445,10 +445,10 @@ def dismiss_reminder(reminder_id):
 @app.route('/session/<int:session_id>/upload', methods=['POST'])
 @login_required
 def upload_file(session_id):
-    # Check if it's an AJAX request (only from JavaScript fetch, not regular form)
+    # detect if request is AJAX (from JS) or regular form
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', '')
     
-    # Check if file is in request
+    # validate file exists in request
     if 'file' not in request.files:
         if is_ajax:
             return jsonify({'success': False, 'error': 'No file selected'}), 400
@@ -457,14 +457,14 @@ def upload_file(session_id):
     
     file = request.files['file']
     
-    # Check if file is empty
+    # make sure file isn't empty
     if file.filename == '':
         if is_ajax:
             return jsonify({'success': False, 'error': 'No file selected'}), 400
         flash('No file selected')
         return redirect(url_for('detail', session_id=session_id))
     
-    # Check if user has RSVP'd to the session
+    # only allow uploads from RSVP'd users
     conn = get_db()
     rsvp = conn.execute('SELECT id FROM rsvps WHERE session_id = ? AND user_id = ?',
                        (session_id, session['user_id'])).fetchone()
@@ -477,22 +477,22 @@ def upload_file(session_id):
         flash(error_msg)
         return redirect(url_for('detail', session_id=session_id))
     
-    # Validate file
+    # check file type is allowed
     if file and allowed_file(file.filename):
-        # Generate secure filename with timestamp to avoid conflicts
+        # create unique filename with timestamp
         original_filename = secure_filename(file.filename)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"{timestamp}_{original_filename}"
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         
-        # Save file
+        # save to disk
         file.save(file_path)
         
-        # Get file info
+        # get file metadata
         file_size = os.path.getsize(file_path)
         file_type = original_filename.rsplit('.', 1)[1].lower()
         
-        # Save to database
+        # store file info in database
         conn.execute('''INSERT INTO files (session_id, user_id, filename, original_filename, file_size, file_type) 
                        VALUES (?, ?, ?, ?, ?, ?)''',
                     (session_id, session['user_id'], filename, original_filename, file_size, file_type))
@@ -522,7 +522,7 @@ def download_file(file_id):
         flash('File not found')
         return redirect(url_for('index'))
     
-    # Check if user has RSVP'd to the session
+    # verify user has RSVP'd before allowing download
     rsvp = conn.execute('SELECT id FROM rsvps WHERE session_id = ? AND user_id = ?',
                        (file_record['session_id'], session['user_id'])).fetchone()
     conn.close()
@@ -547,16 +547,16 @@ def delete_file(file_id):
     
     session_id = file_record['session_id']
     
-    # Check if user is the file uploader or session creator
+    # only uploader or session creator can delete
     study_session = conn.execute('SELECT creator_id FROM sessions WHERE id = ?', (session_id,)).fetchone()
     
     if file_record['user_id'] == session['user_id'] or study_session['creator_id'] == session['user_id']:
-        # Delete file from filesystem
+        # remove from disk
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_record['filename'])
         if os.path.exists(file_path):
             os.remove(file_path)
         
-        # Delete from database
+        # remove from database
         conn.execute('DELETE FROM files WHERE id = ?', (file_id,))
         conn.commit()
         flash('File deleted successfully')
@@ -569,7 +569,7 @@ def delete_file(file_id):
 @app.route('/invitation/<int:invitation_id>/respond', methods=['POST'])
 @login_required
 def respond_invitation(invitation_id):
-    response = request.form.get('response')  # 'accept' or 'decline'
+    response = request.form.get('response')  # accept or decline
     
     conn = get_db()
     invitation = conn.execute('''
@@ -581,7 +581,7 @@ def respond_invitation(invitation_id):
     
     if invitation:
         if response == 'accept':
-            # Check if session is full
+            # verify session isn't full before accepting
             current_count = conn.execute('SELECT COUNT(*) as count FROM rsvps WHERE session_id = ?',
                                         (invitation['session_id'],)).fetchone()['count']
             
@@ -589,7 +589,7 @@ def respond_invitation(invitation_id):
                 flash('Sorry, this session is now full!')
                 conn.execute('UPDATE invitations SET status = ? WHERE id = ?', ('declined', invitation_id))
             else:
-                # Add RSVP and update invitation status
+                # add RSVP and mark invitation accepted
                 try:
                     conn.execute('INSERT INTO rsvps (session_id, user_id) VALUES (?, ?)',
                                (invitation['session_id'], session['user_id']))

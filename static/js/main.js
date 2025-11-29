@@ -1,13 +1,13 @@
-// Dynamic form handling for session type
+// form handling and UI interactions
 document.addEventListener('DOMContentLoaded', function() {
-    // Set minimum date for session creation (today)
+    // prevent creating sessions in the past
     const sessionDateInput = document.getElementById('session_date_input');
     if (sessionDateInput) {
         const today = new Date().toISOString().split('T')[0];
         sessionDateInput.min = today;
     }
     
-    // Combine date and time inputs before form submission
+    // merge date and time fields before submitting
     const createForm = document.getElementById('createForm');
     if (createForm) {
         createForm.addEventListener('submit', function(e) {
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const hiddenDatetime = document.getElementById('session_date');
             
             if (dateInput && timeInput && hiddenDatetime) {
-                // Combine date and time into datetime-local format
+                // combine into single datetime value
                 hiddenDatetime.value = dateInput.value + ' ' + timeInput.value;
             }
         });
@@ -49,13 +49,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Test reminder button
+    // reminder test button (if it exists)
     const testReminderBtn = document.getElementById('testReminder');
     const reminderNotification = document.getElementById('reminderNotification');
     
     if (testReminderBtn && reminderNotification) {
         testReminderBtn.addEventListener('click', function() {
-            // Simulate a reminder notification
+            // show test notification
             reminderNotification.innerHTML = `
                 <strong>🔔 Reminder Sent!</strong><br>
                 "Don't forget your study session is coming up soon!"<br>
@@ -63,14 +63,14 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             reminderNotification.style.display = 'block';
             
-            // Hide after 5 seconds
+            // auto-hide after 5 seconds
             setTimeout(() => {
                 reminderNotification.style.display = 'none';
             }, 5000);
         });
     }
     
-    // Auto-hide alerts after 5 seconds
+    // fade out flash messages
     const alerts = document.querySelectorAll('.alert');
     alerts.forEach(alert => {
         setTimeout(() => {
@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     });
     
-    // Handle quick file upload from chat area
+    // chat area file upload button
     const quickFileUpload = document.getElementById('quick-file-upload');
     if (quickFileUpload) {
         quickFileUpload.addEventListener('change', function(e) {
@@ -87,17 +87,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const file = this.files[0];
                 const sessionId = window.location.pathname.split('/').pop();
                 
-                // Create FormData for file upload
+                // prepare file for upload
                 const formData = new FormData();
                 formData.append('file', file);
                 
-                // Show upload indication
+                // show loading state
                 const uploadBtn = document.querySelector('.file-upload-btn');
                 const originalContent = uploadBtn.innerHTML;
                 uploadBtn.innerHTML = '⏳';
                 uploadBtn.style.pointerEvents = 'none';
                 
-                // Upload the file
+                // send to server
                 fetch(`/session/${sessionId}/upload`, {
                     method: 'POST',
                     body: formData
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Reload page to show new file
+                        // refresh to show uploaded file
                         window.location.reload();
                     } else {
                         alert(data.error || 'Failed to upload file');
@@ -119,13 +119,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     uploadBtn.style.pointerEvents = 'auto';
                 });
                 
-                // Reset file input
+                // clear input for next file
                 this.value = '';
             }
         });
     }
     
-    // Dynamic filtering for study sessions
+    // real-time session filtering
     const searchInput = document.querySelector('.search-input');
     const subjectFilter = document.querySelector('.subject-filter');
     const sessionCards = document.querySelectorAll('.session-card');
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Show/hide empty state message
+        // handle no results message
         const sessionGrid = document.querySelector('.session-grid');
         const emptyState = document.querySelector('.empty-state');
         
@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Add event listeners for real-time filtering
+    // attach filter event handlers
     if (searchInput) {
         searchInput.addEventListener('input', filterSessions);
     }

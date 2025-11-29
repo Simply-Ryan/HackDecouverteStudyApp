@@ -50,7 +50,7 @@
                 <h3>{{ reminder.session_title }}</h3>
                 <span class="reminder-time">{{ reminder.created_at }}</span>
             </div>
-            <p class="reminder-text">💬 {{ reminder.reminder_text }}</p>
+            <p class="reminder-text">{{ reminder.reminder_text }}</p>
             <p class="reminder-sender">From: {{ reminder.sender_name }}</p>
             <div class="reminder-actions">
                 <a href="{{ url_for('detail', session_id=reminder.session_id) }}" class="btn-secondary btn-small">View Session</a>
