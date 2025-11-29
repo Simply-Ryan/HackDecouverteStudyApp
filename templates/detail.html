@@ -41,6 +41,16 @@
     </div>
 
     {% if is_creator %}
+    <div class="creator-actions">
+        <form method="POST" action="{{ url_for('send_reminder', session_id=study_session.id) }}" class="reminder-form">
+            <input type="text" name="reminder_text" placeholder="Type reminder message (e.g., 'Don't forget to bring your notes!')" required class="reminder-input">
+            <button type="submit" class="btn-warning">🔔 Send Reminder to All Participants</button>
+        </form>
+        <form method="POST" action="{{ url_for('delete_session', session_id=study_session.id) }}" class="delete-form" onsubmit="return confirm('Are you sure you want to delete this study session? This action cannot be undone.');">
+            <button type="submit" class="btn-danger">🗑️ Delete Session</button>
+        </form>
+    </div>
+
     <div class="invite-section">
         <h2>📨 Invite Students</h2>
         <p>As the creator, you can invite other students to join this session</p>
@@ -104,7 +114,7 @@
             <ul class="participant-list">
                 {% for rsvp in rsvps %}
                     <li>
-                        👤 {{ rsvp.full_name }} 
+                        👤 {{ rsvp.full_name }}
                         <span class="username-badge">@{{ rsvp.username }}</span>
                     </li>
                 {% endfor %}

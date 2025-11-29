@@ -78,11 +78,14 @@ body {
     padding: 0.3rem 1rem;
     border-radius: 5px;
     transition: all 0.3s;
+    background-color: #000000;
+    border: 1.5px solid #ffffff;
 }
 
 .nav-links a:hover {
     background: #fad6a4;
     color: black;
+    border: #000000;
 }
 
 /* ============================================
@@ -115,12 +118,12 @@ body {
 
 .btn-secondary {
     background: white;
-    color: #667eea;
-    border: 2px solid #667eea;
+    color: #000000;
+    border: 2px solid #000000;
 }
 
 .btn-secondary:hover {
-    background: #667eea;
+    background: #000000;
     color: white;
 }
 
@@ -137,6 +140,25 @@ body {
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
     background: black;
     color: white;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
 }
 
 /* ============================================
@@ -273,7 +295,8 @@ body {
 .time-badge {
     display: inline-block;
     background: rgba(255, 255, 255, 0.95);
-    color: #333;
+    border: 1.5px solid #000000;
+    color: #000000;
     padding: 0.4rem 0.9rem;
     border-radius: 20px;
     font-size: 0.9rem;
@@ -289,11 +312,13 @@ body {
 /* Generic badge styling */
 .badge {
     display: inline-block;
+    border: 1.5px solid #000000;
     padding: 0.3rem 0.8rem;
     border-radius: 20px;
     font-size: 0.9rem;
-    background: rgba(255, 255, 255, 0.3);
+    background: rgb(255, 255, 255);
     margin-bottom: 0.5rem;
+    color: black; 
 }
 
 /* Empty state messaging */
@@ -868,6 +893,19 @@ body {
     background: rgba(255, 255, 255, 0.3);
 }
 
+/* Creator actions section */
+.creator-actions {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 12px;
+    border-left: 4px solid #dc3545;
+}
+
+.delete-form {
+    margin: 0;
+}
+
 /* Invite section in session detail */
 .invite-section {
     background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
@@ -929,6 +967,143 @@ body {
     border-left: 4px solid #4caf50;
     margin: 15px 0;
     font-weight: 500;
+}
+
+/* Reminder functionality */
+.reminder-form {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.reminder-input {
+    flex: 1;
+    min-width: 300px;
+    padding: 12px;
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.reminder-input:focus {
+    outline: none;
+    border-color: #ff9800;
+    box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2);
+}
+
+.btn-warning {
+    background: #ffc107;
+    color: #000;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.btn-warning:hover {
+    background: #ff9800;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+/* Reminders section on homepage */
+.reminders-section {
+    margin-bottom: 40px;
+}
+
+.reminders-section h2 {
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 1.8rem;
+}
+
+.reminders-list {
+    display: grid;
+    gap: 15px;
+}
+
+.reminder-card {
+    background: linear-gradient(135deg, #fff9e6 0%, #ffe8a1 100%);
+    padding: 20px;
+    border-radius: 12px;
+    border-left: 5px solid #ffc107;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.reminder-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.reminder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.reminder-header h3 {
+    color: #333;
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+.reminder-time {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.reminder-text {
+    font-size: 1.1rem;
+    color: #000;
+    font-weight: 500;
+    margin: 15px 0;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 6px;
+}
+
+.reminder-sender {
+    font-size: 0.9rem;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.reminder-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.btn-dismiss {
+    background: #6c757d;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.btn-dismiss:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(108, 117, 125, 0.4);
 }
 
 /* ============================================

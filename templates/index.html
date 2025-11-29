@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="hero">
-    <h1>Welcome to StudySync</h1>
+    <h1>Welcome to StudyFlow</h1>
     <p>Organize and join study sessions with your peers</p>
-    {% if session.user_id %}
+    {% if 'user_id' in session %}
         <a href="{{ url_for('create') }}" class="btn-large">Create New Session</a>
     {% else %}
         <a href="{{ url_for('register') }}" class="btn-large">Get Started - Register Now</a>
@@ -32,6 +32,30 @@
                 <form method="POST" action="{{ url_for('respond_invitation', invitation_id=invitation.id) }}" style="display: inline;">
                     <input type="hidden" name="response" value="decline">
                     <button type="submit" class="btn-secondary">Decline</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if reminders %}
+<section class="reminders-section">
+    <h2>🔔 Recent Reminders</h2>
+    <div class="reminders-list">
+        {% for reminder in reminders %}
+        <div class="reminder-card">
+            <div class="reminder-header">
+                <h3>{{ reminder.session_title }}</h3>
+                <span class="reminder-time">{{ reminder.created_at }}</span>
+            </div>
+            <p class="reminder-text">💬 {{ reminder.reminder_text }}</p>
+            <p class="reminder-sender">From: {{ reminder.sender_name }}</p>
+            <div class="reminder-actions">
+                <a href="{{ url_for('detail', session_id=reminder.session_id) }}" class="btn-secondary btn-small">View Session</a>
+                <form method="POST" action="{{ url_for('dismiss_reminder', reminder_id=reminder.id) }}" style="display: inline;">
+                    <button type="submit" class="btn-dismiss btn-small">✕ Dismiss</button>
                 </form>
             </div>
         </div>

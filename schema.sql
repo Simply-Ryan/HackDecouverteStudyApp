@@ -54,3 +54,23 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (session_id) REFERENCES sessions(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    reminder_text TEXT NOT NULL,
+    sent_by INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id),
+    FOREIGN KEY (sent_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS dismissed_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reminder_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    dismissed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reminder_id) REFERENCES reminders(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    UNIQUE(reminder_id, user_id)
+);

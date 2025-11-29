@@ -66,6 +66,7 @@ def index():
     
     # Get user's invitations if logged in
     invitations = []
+    reminders = []
     if 'user_id' in session:
         invitations = conn.execute('''
             SELECT i.*, s.title as session_title, u.full_name as inviter_name
@@ -74,9 +75,26 @@ def index():
             JOIN users u ON i.inviter_id = u.id
             WHERE i.invitee_id = ? AND i.status = 'pending'
         ''', (session['user_id'],)).fetchall()
+        
+        # Get reminders for sessions the user has RSVP'd to (excluding dismissed ones)
+        reminders = conn.execute('''
+            SELECT r.id, r.session_id, r.reminder_text, r.created_at,
+                   s.title as session_title, u.full_name as sender_name
+            FROM reminders r
+            JOIN sessions s ON r.session_id = s.id
+            JOIN users u ON r.sent_by = u.id
+            WHERE r.session_id IN (
+                SELECT session_id FROM rsvps WHERE user_id = ?
+            )
+            AND r.id NOT IN (
+                SELECT reminder_id FROM dismissed_reminders WHERE user_id = ?
+            )
+            ORDER BY r.created_at DESC
+            LIMIT 10
+        ''', (session['user_id'], session['user_id'])).fetchall()
     
     conn.close()
-    return render_template('index.html', sessions=sessions_query, invitations=invitations)
+    return render_template('index.html', sessions=sessions_query, invitations=invitations, reminders=reminders)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -291,6 +309,76 @@ def invite_user(session_id):
         conn.close()
     
     return redirect(url_for('detail', session_id=session_id))
+
+@app.route('/session/<int:session_id>/delete', methods=['POST'])
+@login_required
+def delete_session(session_id):
+    conn = get_db()
+    
+    # Verify the current user is the session creator
+    study_session = conn.execute('SELECT creator_id FROM sessions WHERE id = ?', 
+                                 (session_id,)).fetchone()
+    
+    if study_session and study_session['creator_id'] == session['user_id']:
+        # Delete related records first (foreign key constraints)
+        conn.execute('DELETE FROM messages WHERE session_id = ?', (session_id,))
+        conn.execute('DELETE FROM rsvps WHERE session_id = ?', (session_id,))
+        conn.execute('DELETE FROM invitations WHERE session_id = ?', (session_id,))
+        # Delete the session itself
+        conn.execute('DELETE FROM sessions WHERE id = ?', (session_id,))
+        conn.commit()
+        flash('Study session deleted successfully!')
+        conn.close()
+        return redirect(url_for('index'))
+    else:
+        flash('Only the session creator can delete this session!')
+        conn.close()
+        return redirect(url_for('detail', session_id=session_id))
+
+@app.route('/session/<int:session_id>/reminder', methods=['POST'])
+@login_required
+def send_reminder(session_id):
+    reminder_text = request.form.get('reminder_text', '').strip()
+    
+    if not reminder_text:
+        flash('Please enter a reminder message!')
+        return redirect(url_for('detail', session_id=session_id))
+    
+    conn = get_db()
+    
+    # Verify the current user is the session creator
+    study_session = conn.execute('SELECT creator_id FROM sessions WHERE id = ?', 
+                                 (session_id,)).fetchone()
+    
+    if study_session and study_session['creator_id'] == session['user_id']:
+        # Insert the reminder
+        conn.execute('INSERT INTO reminders (session_id, reminder_text, sent_by) VALUES (?, ?, ?)',
+                   (session_id, reminder_text, session['user_id']))
+        conn.commit()
+        flash(f'Reminder sent to all participants: "{reminder_text}"')
+    else:
+        flash('Only the session creator can send reminders!')
+    
+    conn.close()
+    return redirect(url_for('detail', session_id=session_id))
+
+@app.route('/reminder/<int:reminder_id>/dismiss', methods=['POST'])
+@login_required
+def dismiss_reminder(reminder_id):
+    conn = get_db()
+    
+    try:
+        # Insert into dismissed_reminders to mark it as dismissed for this user
+        conn.execute('INSERT INTO dismissed_reminders (reminder_id, user_id) VALUES (?, ?)',
+                   (reminder_id, session['user_id']))
+        conn.commit()
+        flash('Reminder dismissed')
+    except sqlite3.IntegrityError:
+        # Already dismissed
+        pass
+    
+    conn.close()
+    return redirect(url_for('index'))
 
 @app.route('/invitation/<int:invitation_id>/respond', methods=['POST'])
 @login_required
