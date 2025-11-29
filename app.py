@@ -244,7 +244,7 @@ def detail(session_id):
     
     is_creator = 'user_id' in session and study_session['creator_user_id'] == session['user_id']
     
-    return render_template('detail.html', session=study_session, rsvps=rsvps, messages=messages,
+    return render_template('detail.html', study_session=study_session, rsvps=rsvps, messages=messages,
                          current_count=current_count, max_participants=max_participants,
                          is_full=is_full, spots_left=spots_left, user_has_rsvp=user_has_rsvp,
                          is_creator=is_creator, all_users=all_users)

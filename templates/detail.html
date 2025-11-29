@@ -1,43 +1,43 @@
 {% extends "base.html" %}
 
-{% block title %}{{ session.title }} - Study Session{% endblock %}
+{% block title %}{{ study_session.title }} - Study Session{% endblock %}
 
 {% block content %}
 <div class="session-detail">
     <div class="detail-header">
-        <h1>{{ session.title }}</h1>
+        <h1>{{ study_session.title }}</h1>
         <div class="header-badges">
-            <span class="badge badge-subject">{{ session.subject }}</span>
-            <span class="badge badge-{{ session.session_type }}">
-                {{ '🌐 Remote' if session.session_type == 'remote' else '📍 In-Person' }}
+            <span class="badge badge-subject">{{ study_session.subject }}</span>
+            <span class="badge badge-{{ study_session.session_type }}">
+                {{ '🌐 Remote' if study_session.session_type == 'remote' else '📍 In-Person' }}
             </span>
         </div>
     </div>
 
-    {% if session.session_date %}
+    {% if study_session.session_date %}
         <div class="session-datetime">
             <h3>📅 Scheduled For</h3>
-            <p class="datetime-display">{{ session.session_date|replace('T', ' at ') }}</p>
-            <p class="countdown-display">{{ format_time_remaining(session.session_date) }}</p>
+            <p class="datetime-display">{{ study_session.session_date|replace('T', ' at ') }}</p>
+            <p class="countdown-display">{{ format_time_remaining(study_session.session_date) }}</p>
         </div>
     {% endif %}
 
     <div class="detail-info">
-        {% if session.session_type == 'remote' and session.meeting_link %}
+        {% if study_session.session_type == 'remote' and study_session.meeting_link %}
             <div class="info-box">
                 <strong>Meeting Link:</strong>
-                <a href="{{ session.meeting_link }}" target="_blank" class="link">{{ session.meeting_link }}</a>
+                <a href="{{ study_session.meeting_link }}" target="_blank" class="link">{{ study_session.meeting_link }}</a>
             </div>
-        {% elif session.session_type == 'in-person' and session.location %}
+        {% elif study_session.session_type == 'in-person' and study_session.location %}
             <div class="info-box">
                 <strong>Location:</strong>
-                <span>📍 {{ session.location }}</span>
+                <span>📍 {{ study_session.location }}</span>
             </div>
         {% endif %}
     </div>
 
     <div class="session-creator-info">
-        <p><strong>Created by:</strong> {{ session.creator_name }}</p>
+        <p><strong>Created by:</strong> {{ study_session.creator_name }}</p>
     </div>
 
     {% if is_creator %}
@@ -46,7 +46,7 @@
         <p>As the creator, you can invite other students to join this session</p>
         
         {% if all_users %}
-            <form method="POST" action="{{ url_for('invite_user', session_id=session.id) }}" class="invite-form">
+            <form method="POST" action="{{ url_for('invite_user', session_id=study_session.id) }}" class="invite-form">
                 <div class="form-group">
                     <select name="invitee_id" required class="select-input">
                         <option value="">Select a student to invite...</option>
@@ -70,7 +70,7 @@
             <div class="capacity-text">
                 <span class="capacity-numbers">{{ current_count }} / {{ max_participants }} spots filled</span>
                 {% if is_full %}
-                    <span class="capacity-full">🔴 Session Full</span>
+                    <span class="capacity-full">Session Full</span>
                 {% elif spots_left <= 3 %}
                     <span class="capacity-warning">⚠️ Only {{ spots_left }} spots left!</span>
                 {% else %}
@@ -82,9 +82,9 @@
             </div>
         </div>
         
-        {% if session.user_id %}
+        {% if 'user_id' in session %}
             {% if user_has_rsvp %}
-                <p class="success-message">✅ You have RSVP'd to this session!</p>
+                <p class="success-message">You have RSVP'd to this session!</p>
             {% elif not is_full %}
                 <form method="POST" class="rsvp-form">
                     <input type="hidden" name="rsvp" value="1">
@@ -135,8 +135,8 @@
             {% endif %}
         </div>
 
-        {% if session.user_id %}
-            <form method="POST" action="{{ url_for('post_message', session_id=session.id) }}" class="message-form">
+        {% if 'user_id' in session %}
+            <form method="POST" action="{{ url_for('post_message', session_id=study_session.id) }}" class="message-form">
                 <div class="form-group message-input-group">
                     <textarea name="message_text" placeholder="Type your message..." required rows="3" class="message-textarea"></textarea>
                     <button type="submit" class="btn-primary">Send Message</button>
@@ -155,3 +155,5 @@
     </div>
 </div>
 {% endblock %}
+
+
