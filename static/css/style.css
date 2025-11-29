@@ -14,19 +14,20 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 800px;
     margin: 0 auto;
     padding: 0 20px;
 }
 
 /* Navbar */
 .navbar {
-    background: rgba(255, 255, 255, 0.95);
+    background: #fad6a5;
     padding: 1rem 0;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     position: sticky;
     top: 0;
     z-index: 100;
+    border-bottom: rgb(255, 255, 255) 3px solid;
 }
 
 .navbar .container {
@@ -181,6 +182,30 @@ body {
     border-radius: 12px;
     color: white;
     transition: transform 0.3s;
+    position: relative;
+}
+
+/* Subject-based color coding */
+.session-card.subject-mathematics { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.session-card.subject-physics { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.session-card.subject-chemistry { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.session-card.subject-biology { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+.session-card.subject-computer-science { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+.session-card.subject-engineering { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+.session-card.subject-business { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+.session-card.subject-languages { background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%); }
+.session-card.subject-history { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+.session-card.subject-literature { background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%); }
+.session-card.subject-general { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+
+.subject-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.3);
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
 }
 
 .session-card:hover {
@@ -282,6 +307,18 @@ body {
     font-size: 2rem;
 }
 
+.header-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.badge-subject {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+}
+
 .info-box {
     background: #f8f9fa;
     padding: 1rem;
@@ -351,6 +388,112 @@ body {
     padding: 0.75rem;
     border-radius: 8px;
     border-left: 4px solid #667eea;
+}
+
+/* Study Room Chat */
+.study-room-chat {
+    margin: 2rem 0;
+    padding: 2rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.study-room-chat h2 {
+    color: #667eea;
+    margin-bottom: 0.5rem;
+}
+
+.chat-description {
+    color: #666;
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+}
+
+.messages-container {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.message-bubble {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border-left: 4px solid #667eea;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    animation: slideInMessage 0.3s;
+}
+
+@keyframes slideInMessage {
+    from {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.sender-name {
+    color: #667eea;
+    font-size: 0.95rem;
+}
+
+.message-time {
+    color: #999;
+    font-size: 0.8rem;
+}
+
+.message-text {
+    color: #333;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.message-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.message-input-name {
+    width: 100%;
+    max-width: 300px;
+}
+
+.message-input-group {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.message-textarea {
+    flex: 1;
+    padding: 0.75rem;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.3s;
+}
+
+.message-textarea:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 /* Reminder Box */

@@ -6,9 +6,12 @@
 <div class="session-detail">
     <div class="detail-header">
         <h1>{{ session.title }}</h1>
-        <span class="badge badge-{{ session.session_type }}">
-            {{ '🌐 Remote' if session.session_type == 'remote' else '📍 In-Person' }}
-        </span>
+        <div class="header-badges">
+            <span class="badge badge-subject">{{ session.subject }}</span>
+            <span class="badge badge-{{ session.session_type }}">
+                {{ '🌐 Remote' if session.session_type == 'remote' else '📍 In-Person' }}
+            </span>
+        </div>
     </div>
 
     <div class="detail-info">
@@ -46,6 +49,37 @@
         {% else %}
             <p class="empty-state">No participants yet. Be the first to RSVP!</p>
         {% endif %}
+    </div>
+
+    <div class="study-room-chat">
+        <h2>💬 Study Room Chat</h2>
+        <p class="chat-description">Ask questions, share notes, or coordinate with your study group!</p>
+        
+        <div class="messages-container">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="message-bubble">
+                        <div class="message-header">
+                            <strong class="sender-name">{{ message.sender_name }}</strong>
+                            <span class="message-time">{{ message.created_at }}</span>
+                        </div>
+                        <div class="message-text">{{ message.message_text }}</div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-state">No messages yet. Start the conversation!</p>
+            {% endif %}
+        </div>
+
+        <form method="POST" action="{{ url_for('post_message', session_id=session.id) }}" class="message-form">
+            <div class="form-group">
+                <input type="text" name="sender_name" placeholder="Your name" required class="message-input-name">
+            </div>
+            <div class="form-group message-input-group">
+                <textarea name="message_text" placeholder="Type your message..." required rows="3" class="message-textarea"></textarea>
+                <button type="submit" class="btn-primary">Send Message</button>
+            </div>
+        </form>
     </div>
 
     <div class="reminder-box">

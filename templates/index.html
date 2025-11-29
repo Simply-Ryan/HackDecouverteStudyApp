@@ -15,7 +15,8 @@
     {% if sessions %}
         <div class="session-grid">
             {% for session in sessions %}
-            <div class="session-card">
+            <div class="session-card subject-{{ session.subject|replace(' ', '-')|lower }}">
+                <div class="subject-badge">{{ session.subject }}</div>
                 <h3>{{ session.title }}</h3>
                 <div class="session-info">
                     <span class="badge badge-{{ session.session_type }}">

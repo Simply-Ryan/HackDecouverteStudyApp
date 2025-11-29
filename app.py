@@ -23,12 +23,13 @@ def create():
     if request.method == 'POST':
         title = request.form['title']
         session_type = request.form['session_type']
+        subject = request.form.get('subject', 'General')
         meeting_link = request.form.get('meeting_link', '')
         location = request.form.get('location', '')
         
         conn = get_db()
-        conn.execute('INSERT INTO sessions (title, session_type, meeting_link, location) VALUES (?, ?, ?, ?)',
-                     (title, session_type, meeting_link, location))
+        conn.execute('INSERT INTO sessions (title, session_type, subject, meeting_link, location) VALUES (?, ?, ?, ?, ?)',
+                     (title, session_type, subject, meeting_link, location))
         conn.commit()
         conn.close()
         flash('Study session created successfully!')
@@ -42,16 +43,33 @@ def detail(session_id):
     session = conn.execute('SELECT * FROM sessions WHERE id = ?', (session_id,)).fetchone()
     
     if request.method == 'POST':
-        participant_name = request.form['participant_name']
-        conn.execute('INSERT INTO rsvps (session_id, participant_name) VALUES (?, ?)',
-                     (session_id, participant_name))
-        conn.commit()
-        flash('RSVP submitted successfully!')
+        if 'participant_name' in request.form:
+            participant_name = request.form['participant_name']
+            conn.execute('INSERT INTO rsvps (session_id, participant_name) VALUES (?, ?)',
+                         (session_id, participant_name))
+            conn.commit()
+            flash('RSVP submitted successfully!')
         return redirect(url_for('detail', session_id=session_id))
     
     rsvps = conn.execute('SELECT * FROM rsvps WHERE session_id = ?', (session_id,)).fetchall()
+    messages = conn.execute('SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC', (session_id,)).fetchall()
     conn.close()
-    return render_template('detail.html', session=session, rsvps=rsvps)
+    return render_template('detail.html', session=session, rsvps=rsvps, messages=messages)
+
+@app.route('/session/<int:session_id>/message', methods=['POST'])
+def post_message(session_id):
+    sender_name = request.form.get('sender_name', 'Anonymous')
+    message_text = request.form.get('message_text', '')
+    
+    if message_text.strip():
+        conn = get_db()
+        conn.execute('INSERT INTO messages (session_id, sender_name, message_text) VALUES (?, ?, ?)',
+                     (session_id, sender_name, message_text))
+        conn.commit()
+        conn.close()
+        flash('Message posted!')
+    
+    return redirect(url_for('detail', session_id=session_id))
 
 if __name__ == '__main__':
     app.run(debug=True)
