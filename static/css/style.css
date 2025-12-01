@@ -1463,5 +1463,290 @@ body {
 }
 
 /* ============================================
+   FILE PREVIEW & CARDS
+   ============================================ */
+
+/* Horizontal file list container */
+.files-list-horizontal {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin: 1.5rem 0;
+}
+
+/* Individual file card */
+.file-card {
+    flex: 0 0 calc(25% - 1.125rem);
+    min-width: 200px;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.file-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+}
+
+.file-card-hidden {
+    display: none;
+}
+
+/* File preview/thumbnail area */
+.file-card-preview {
+    position: relative;
+    width: 100%;
+    height: 180px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-card-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.file-card-preview:hover .file-card-image {
+    transform: scale(1.05);
+}
+
+.file-card-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(102, 126, 234, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.file-card-preview:hover .file-card-overlay {
+    opacity: 1;
+}
+
+.file-card-overlay i {
+    color: white;
+    font-size: 2.5rem;
+}
+
+/* Icon display for non-image files */
+.file-card-icon {
+    cursor: default;
+}
+
+.file-card-icon i {
+    font-size: 4rem;
+    color: #667eea;
+    opacity: 0.7;
+}
+
+/* File info section */
+.file-card-info {
+    padding: 1rem;
+    flex-grow: 1;
+}
+
+.file-card-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-card-meta {
+    font-size: 0.85rem;
+    color: #718096;
+}
+
+/* File actions */
+.file-card-actions {
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    display: flex;
+    gap: 0.5rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.file-card-actions .btn-small {
+    flex: 1;
+    padding: 0.5rem;
+    font-size: 0.85rem;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-card-actions form {
+    flex: 1;
+    margin: 0;
+}
+
+.file-card-actions form button {
+    width: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .file-card {
+        flex: 0 0 calc(33.333% - 1rem);
+    }
+}
+
+@media (max-width: 768px) {
+    .file-card {
+        flex: 0 0 calc(50% - 0.75rem);
+        min-width: 150px;
+    }
+    
+    .file-card-preview {
+        height: 150px;
+    }
+}
+
+@media (max-width: 480px) {
+    .file-card {
+        flex: 0 0 100%;
+    }
+}
+
+/* Preview Modal - Full Screen */
+.preview-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.95);
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s;
+}
+
+.preview-modal-content {
+    max-width: 95vw;
+    max-height: 95vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: zoomIn 0.3s;
+}
+
+@keyframes zoomIn {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Full screen image */
+.preview-fullscreen-image {
+    max-width: 95vw;
+    max-height: 95vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Full screen PDF iframe */
+.preview-fullscreen-iframe {
+    width: 95vw;
+    height: 95vh;
+    border: none;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Preview action buttons */
+.preview-modal-actions {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 12px;
+    z-index: 10001;
+    animation: slideInRight 0.3s;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.preview-action-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    text-decoration: none;
+}
+
+.preview-close-btn {
+    background: rgba(255, 255, 255, 0.95);
+    color: #2d3748;
+}
+
+.preview-close-btn:hover {
+    background: white;
+    transform: rotate(90deg) scale(1.1);
+}
+
+.preview-download-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.preview-download-btn:hover {
+    transform: translateY(-2px) scale(1.1);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.preview-delete-btn {
+    background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+    color: white;
+}
+
+.preview-delete-btn:hover {
+    transform: translateY(-2px) scale(1.1);
+    box-shadow: 0 6px 20px rgba(245, 101, 101, 0.4);
+}
+
+/* ============================================
    END OF STYLESHEET
    ============================================ */

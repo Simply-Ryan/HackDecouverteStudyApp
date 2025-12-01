@@ -217,35 +217,42 @@
             return div.innerHTML;
         }
 
-        // poll for new messages
-        function pollMessages() {
-            if (isSubmitting) return; // skip polling while submitting
-            
-            fetch(`{{ url_for('get_messages', session_id=study_session.id) }}?last_id=${lastMessageId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.messages && data.messages.length > 0) {
-                        // remove empty state if it exists
-                        const emptyState = messagesContainer.querySelector('.empty-state');
-                        if (emptyState) {
-                            emptyState.remove();
-                        }
-
-                        // add new messages (skip duplicates)
-                        data.messages.forEach(msg => {
-                            if (!messageExists(msg.id)) {
-                                const msgElement = createMessageElement(msg);
-                                messagesContainer.appendChild(msgElement);
-                                lastMessageId = Math.max(lastMessageId, msg.id);
-                            }
-                        });
-
-                        // scroll to bottom
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                    }
-                })
-                .catch(error => console.error('Error polling messages:', error));
+        // format file size
+        function formatFileSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let size = bytes;
+            let unitIndex = 0;
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            return size.toFixed(1) + ' ' + units[unitIndex];
         }
+
+        // Initialize WebSocket connection
+        const socket = io();
+        const sessionId = {{ study_session.id }};
+
+        // Join the session room for real-time updates
+        socket.emit('join_session', { session_id: sessionId });
+
+        // Listen for new messages from WebSocket
+        socket.on('new_message', function(msg) {
+            if (!messageExists(msg.id)) {
+                // remove empty state if it exists
+                const emptyState = messagesContainer.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+
+                const msgElement = createMessageElement(msg);
+                messagesContainer.appendChild(msgElement);
+                lastMessageId = Math.max(lastMessageId, msg.id);
+                
+                // scroll to bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        });
 
         // handle message form submission with AJAX
         if (messageForm) {
@@ -269,24 +276,8 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // remove empty state if exists
-                        const emptyState = messagesContainer.querySelector('.empty-state');
-                        if (emptyState) {
-                            emptyState.remove();
-                        }
-
-                        // add the new message only if it doesn't exist
-                        if (!messageExists(data.message.id)) {
-                            const msgElement = createMessageElement(data.message);
-                            messagesContainer.appendChild(msgElement);
-                            lastMessageId = Math.max(lastMessageId, data.message.id);
-                        }
-                        
-                        // clear textarea
+                        // Message will be added via WebSocket, just clear the form
                         messageTextarea.value = '';
-                        
-                        // scroll to bottom
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
                     isSubmitting = false;
                     submitBtn.disabled = false;
@@ -301,18 +292,15 @@
             });
         }
 
-        // initialize and start polling
+        // Initialize last message ID
         if (messagesContainer) {
             initLastMessageId();
-            
-            // poll every 3 seconds for new messages
-            pollInterval = setInterval(pollMessages, 3000);
-            
-            // stop polling when user leaves page
-            window.addEventListener('beforeunload', function() {
-                clearInterval(pollInterval);
-            });
         }
+
+        // Leave session room when user leaves page
+        window.addEventListener('beforeunload', function() {
+            socket.emit('leave_session', { session_id: sessionId });
+        });
     })();
     </script>
 
@@ -320,14 +308,19 @@
         <h2>Study Materials</h2>
         
         {% if files %}
-            <div class="files-list" id="filesList">
+            <div class="files-list-horizontal" id="filesList">
                 {% for file in files %}
-                    <div class="file-item" data-file-id="{{ file.id }}">
-                        <div class="file-info">
-                            <div class="file-icon">
-                                {% if file.file_type in ['png', 'jpg', 'jpeg', 'gif'] %}
-                                    <i class="fas fa-image"></i>
-                                {% elif file.file_type == 'pdf' %}
+                    <div class="file-card {% if loop.index > 4 %}file-card-hidden{% endif %}" data-file-id="{{ file.id }}" data-file-type="{{ file.file_type }}">
+                        {% if file.file_type in ['png', 'jpg', 'jpeg', 'gif'] %}
+                            <div class="file-card-preview" onclick="openPreviewModal({{ file.id }}, '{{ file.file_type }}', '{{ file.original_filename }}', {{ file.user_id }})">
+                                <img src="{{ url_for('preview_file', file_id=file.id) }}" alt="{{ file.original_filename }}" class="file-card-image" loading="lazy">
+                                <div class="file-card-overlay">
+                                    <i class="fas fa-search-plus"></i>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="file-card-preview file-card-icon">
+                                {% if file.file_type == 'pdf' %}
                                     <i class="fas fa-file-pdf"></i>
                                 {% elif file.file_type in ['doc', 'docx'] %}
                                     <i class="fas fa-file-word"></i>
@@ -341,26 +334,36 @@
                                     <i class="fas fa-file"></i>
                                 {% endif %}
                             </div>
-                            <div class="file-details">
-                                <div class="file-name">{{ file.original_filename }}</div>
-                                <div class="file-meta">
-                                    Uploaded by <strong>{{ file.full_name }}</strong> 
-                                    on {{ file.uploaded_at }} 
-                                    ({{ file.file_size }})
-                                </div>
-                            </div>
+                        {% endif %}
+                        <div class="file-card-info">
+                            <div class="file-card-name" title="{{ file.original_filename }}">{{ file.original_filename }}</div>
+                            <div class="file-card-meta">{{ file.full_name }}</div>
                         </div>
-                        <div class="file-actions">
-                            <a href="{{ url_for('download_file', file_id=file.id) }}" class="btn-secondary btn-small">Download</a>
+                        <div class="file-card-actions">
+                            {% if file.file_type in ['png', 'jpg', 'jpeg', 'gif', 'pdf'] %}
+                                <button onclick="openPreviewModal({{ file.id }}, '{{ file.file_type }}', '{{ file.original_filename }}', {{ file.user_id }})" class="btn-primary btn-small" title="Preview">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            {% endif %}
+                            <a href="{{ url_for('download_file', file_id=file.id) }}" class="btn-secondary btn-small" title="Download">
+                                <i class="fas fa-download"></i>
+                            </a>
                             {% if 'user_id' in session and (session['user_id'] == file.user_id or session['user_id'] == study_session.creator_id) %}
                                 <form method="POST" action="{{ url_for('delete_file', file_id=file.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this file?');">
-                                    <button type="submit" class="btn-danger btn-small">Delete</button>
+                                    <button type="submit" class="btn-danger btn-small" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
                                 </form>
                             {% endif %}
                         </div>
                     </div>
                 {% endfor %}
             </div>
+            {% if files|length > 4 %}
+                <button id="toggleFilesBtn" class="btn-secondary" onclick="toggleOlderFiles()" style="margin-top: 1rem;">
+                    <i class="fas fa-chevron-down"></i> See Older Materials ({{ files|length - 4 }} more)
+                </button>
+            {% endif %}
         {% else %}
             <p class="empty-state">No files uploaded yet. Be the first to share study materials!</p>
         {% endif %}
@@ -445,33 +448,48 @@
             return div.innerHTML;
         }
 
-        // create file element HTML
+        // create file element HTML (card style)
         function createFileElement(file) {
             const div = document.createElement('div');
-            div.className = 'file-item';
+            div.className = 'file-card';
             div.dataset.fileId = file.id;
+            div.dataset.fileType = file.file_type;
             
             const canDelete = currentUserId && (currentUserId === file.user_id || isCreator);
+            const isImage = ['png', 'jpg', 'jpeg', 'gif'].includes(file.file_type);
+            const canPreview = isImage || file.file_type === 'pdf';
             
             div.innerHTML = `
-                <div class="file-info">
-                    <div class="file-icon">
-                        <i class="fas ${getFileIcon(file.file_type)}"></i>
-                    </div>
-                    <div class="file-details">
-                        <div class="file-name">${escapeHtml(file.original_filename)}</div>
-                        <div class="file-meta">
-                            Uploaded by <strong>${escapeHtml(file.full_name)}</strong> 
-                            on ${escapeHtml(file.uploaded_at.substring(0, 16))} 
-                            (${formatFileSize(file.file_size)})
+                ${isImage ? `
+                    <div class="file-card-preview" onclick="openPreviewModal(${file.id}, '${file.file_type}', '${escapeHtml(file.original_filename)}', ${file.user_id})">
+                        <img src="/file/${file.id}/preview" alt="${escapeHtml(file.original_filename)}" class="file-card-image" loading="lazy">
+                        <div class="file-card-overlay">
+                            <i class="fas fa-search-plus"></i>
                         </div>
                     </div>
+                ` : `
+                    <div class="file-card-preview file-card-icon">
+                        <i class="fas ${getFileIcon(file.file_type)}"></i>
+                    </div>
+                `}
+                <div class="file-card-info">
+                    <div class="file-card-name" title="${escapeHtml(file.original_filename)}">${escapeHtml(file.original_filename)}</div>
+                    <div class="file-card-meta">${escapeHtml(file.full_name)}</div>
                 </div>
-                <div class="file-actions">
-                    <a href="/file/${file.id}/download" class="btn-secondary btn-small">Download</a>
+                <div class="file-card-actions">
+                    ${canPreview ? `
+                        <button onclick="openPreviewModal(${file.id}, '${file.file_type}', '${escapeHtml(file.original_filename)}', ${file.user_id})" class="btn-primary btn-small" title="Preview">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    ` : ''}
+                    <a href="/file/${file.id}/download" class="btn-secondary btn-small" title="Download">
+                        <i class="fas fa-download"></i>
+                    </a>
                     ${canDelete ? `
                         <form method="POST" action="/file/${file.id}/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this file?');">
-                            <button type="submit" class="btn-danger btn-small">Delete</button>
+                            <button type="submit" class="btn-danger btn-small" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </form>
                     ` : ''}
                 </div>
@@ -480,42 +498,34 @@
             return div;
         }
 
-        // poll for new files
-        function pollFiles() {
-            if (isUploading) return; // skip polling while uploading
-            
-            fetch(`{{ url_for('get_files', session_id=study_session.id) }}?last_id=${lastFileId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.files && data.files.length > 0) {
-                        // remove empty state if exists
-                        const emptyState = document.querySelector('.file-upload-section .empty-state');
-                        if (emptyState) {
-                            emptyState.remove();
-                        }
+        // Listen for new files from WebSocket
+        socket.on('new_file', function(file) {
+            if (!fileExists(file.id)) {
+                // remove empty state if exists
+                const emptyState = document.querySelector('.file-upload-section .empty-state');
+                if (emptyState) {
+                    emptyState.remove();
+                }
 
-                        // create files list if it doesn't exist
-                        let filesListContainer = document.getElementById('filesList');
-                        if (!filesListContainer) {
-                            filesListContainer = document.createElement('div');
-                            filesListContainer.id = 'filesList';
-                            filesListContainer.className = 'files-list';
-                            const fileSection = document.querySelector('.file-upload-section h2');
-                            fileSection.insertAdjacentElement('afterend', filesListContainer);
-                        }
+                // create files list if it doesn't exist
+                let filesListContainer = document.getElementById('filesList');
+                if (!filesListContainer) {
+                    filesListContainer = document.createElement('div');
+                    filesListContainer.id = 'filesList';
+                    filesListContainer.className = 'files-list-horizontal';
+                    const fileSection = document.querySelector('.file-upload-section h2');
+                    fileSection.insertAdjacentElement('afterend', filesListContainer);
+                }
 
-                        // add new files (skip duplicates)
-                        data.files.forEach(file => {
-                            if (!fileExists(file.id)) {
-                                const fileElement = createFileElement(file);
-                                filesListContainer.appendChild(fileElement);
-                                lastFileId = Math.max(lastFileId, file.id);
-                            }
-                        });
-                    }
-                })
-                .catch(error => console.error('Error polling files:', error));
-        }
+                // add new file - prepend to show newest first
+                const fileElement = createFileElement(file);
+                filesListContainer.insertBefore(fileElement, filesListContainer.firstChild);
+                lastFileId = Math.max(lastFileId, file.id);
+                
+                // update toggle button if it exists
+                updateToggleButton();
+            }
+        });
 
         // handle file upload with AJAX
         if (uploadForm) {
@@ -562,17 +572,20 @@
                         if (!filesListContainer) {
                             filesListContainer = document.createElement('div');
                             filesListContainer.id = 'filesList';
-                            filesListContainer.className = 'files-list';
+                            filesListContainer.className = 'files-list-horizontal';
                             const fileSection = document.querySelector('.file-upload-section h2');
                             fileSection.insertAdjacentElement('afterend', filesListContainer);
                         }
 
-                        // add the new file only if it doesn't exist
+                        // add the new file only if it doesn't exist - prepend to show newest first
                         if (!fileExists(data.file.id)) {
                             const fileElement = createFileElement(data.file);
-                            filesListContainer.appendChild(fileElement);
+                            filesListContainer.insertBefore(fileElement, filesListContainer.firstChild);
                             lastFileId = Math.max(lastFileId, data.file.id);
                         }
+                        
+                        // update toggle button
+                        updateToggleButton();
                         
                         // clear file input
                         fileInput.value = '';
@@ -610,6 +623,7 @@
                     // create form data
                     const formData = new FormData();
                     formData.append('file', uploadedFile);
+                    formData.append('file_context', 'chat');
                     
                     // disable the file button during upload
                     const fileBtn = document.querySelector('.file-upload-btn');
@@ -632,33 +646,34 @@
                     .then(data => {
                         isUploading = false;
                         
-                        if (data.success) {
-                            // remove empty state if exists
-                            const emptyState = document.querySelector('.file-upload-section .empty-state');
-                            if (emptyState) {
-                                emptyState.remove();
-                            }
-
-                            // create files list if it doesn't exist
-                            let filesListContainer = document.getElementById('filesList');
-                            if (!filesListContainer) {
-                                filesListContainer = document.createElement('div');
-                                filesListContainer.id = 'filesList';
-                                filesListContainer.className = 'files-list';
-                                const fileSection = document.querySelector('.file-upload-section h2');
-                                if (fileSection) {
-                                    fileSection.insertAdjacentElement('afterend', filesListContainer);
+                        if (data.success && data.file) {
+                            // add file message to chat
+                            const messagesContainer = document.querySelector('.messages-container');
+                            if (messagesContainer) {
+                                const emptyState = messagesContainer.querySelector('.empty-state');
+                                if (emptyState) {
+                                    emptyState.remove();
                                 }
-                            }
-
-                            // add the new file only if it doesn't exist
-                            if (filesListContainer && data.file && !fileExists(data.file.id)) {
-                                const fileElement = createFileElement(data.file);
-                                filesListContainer.appendChild(fileElement);
-                                lastFileId = Math.max(lastFileId, data.file.id);
+                                
+                                // create file message element
+                                const fileMsg = document.createElement('div');
+                                fileMsg.className = 'message-bubble own-message';
+                                fileMsg.innerHTML = `
+                                    <div class="message-header">
+                                        <strong class="sender-name">${escapeHtml(data.file.full_name)}</strong>
+                                        <span class="username-badge">@${escapeHtml(data.file.username)}</span>
+                                        <span class="message-time">Just now</span>
+                                    </div>
+                                    <div class="message-text">
+                                        <i class="fas fa-file"></i> Uploaded file: <strong>${escapeHtml(data.file.original_filename)}</strong>
+                                        <br><small>${formatFileSize(data.file.file_size)}</small>
+                                    </div>
+                                `;
+                                messagesContainer.appendChild(fileMsg);
+                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
                             }
                             
-                            alert('File uploaded successfully!');
+                            alert('File uploaded to chat successfully!');
                         } else {
                             alert(data.error || 'Upload failed');
                         }
@@ -687,18 +702,132 @@
             });
         }
 
-        // initialize and start polling
+        // initialize last file ID
         initLastFileId();
-        
-        // poll every 5 seconds for new files
-        filePollInterval = setInterval(pollFiles, 5000);
-        
-        // stop polling when user leaves page
-        window.addEventListener('beforeunload', function() {
-            clearInterval(filePollInterval);
-        });
     })();
+
+    // Toggle older files visibility
+    let filesExpanded = false;
+    function toggleOlderFiles() {
+        filesExpanded = !filesExpanded;
+        const hiddenFiles = document.querySelectorAll('.file-card-hidden');
+        const toggleBtn = document.getElementById('toggleFilesBtn');
+        
+        if (filesExpanded) {
+            hiddenFiles.forEach(file => file.style.display = 'flex');
+            toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Show Less';
+        } else {
+            hiddenFiles.forEach(file => file.style.display = 'none');
+            toggleBtn.innerHTML = `<i class="fas fa-chevron-down"></i> See Older Materials (${hiddenFiles.length} more)`;
+        }
+    }
+    
+    function updateToggleButton() {
+        const filesListContainer = document.getElementById('filesList');
+        if (!filesListContainer) return;
+        
+        const allFiles = filesListContainer.querySelectorAll('.file-card');
+        const totalFiles = allFiles.length;
+        
+        // hide files beyond the first 4
+        allFiles.forEach((file, index) => {
+            if (index >= 4) {
+                file.classList.add('file-card-hidden');
+                if (!filesExpanded) {
+                    file.style.display = 'none';
+                }
+            }
+        });
+        
+        // show/hide toggle button
+        let toggleBtn = document.getElementById('toggleFilesBtn');
+        if (totalFiles > 4) {
+            if (!toggleBtn) {
+                toggleBtn = document.createElement('button');
+                toggleBtn.id = 'toggleFilesBtn';
+                toggleBtn.className = 'btn-secondary';
+                toggleBtn.style.marginTop = '1rem';
+                toggleBtn.onclick = toggleOlderFiles;
+                filesListContainer.insertAdjacentElement('afterend', toggleBtn);
+            }
+            const hiddenCount = totalFiles - 4;
+            toggleBtn.innerHTML = filesExpanded ? 
+                '<i class="fas fa-chevron-up"></i> Show Less' : 
+                `<i class="fas fa-chevron-down"></i> See Older Materials (${hiddenCount} more)`;
+            toggleBtn.style.display = 'block';
+        } else if (toggleBtn) {
+            toggleBtn.style.display = 'none';
+        }
+    }
+
+    // Preview modal functionality
+    function openPreviewModal(fileId, fileType, filename, userId = null) {
+        const modal = document.getElementById('previewModal');
+        const modalContent = document.getElementById('previewContent');
+        const modalActions = document.getElementById('previewActions');
+        
+        // check if current user can delete
+        const currentUserId = {{ session.get('user_id', 'null') }};
+        const isCreator = {{ 'true' if is_creator else 'false' }};
+        const canDelete = currentUserId && userId && (currentUserId === userId || isCreator);
+        
+        // display image or PDF
+        if (['png', 'jpg', 'jpeg', 'gif'].includes(fileType)) {
+            modalContent.innerHTML = `<img src="/file/${fileId}/preview" alt="${filename}" class="preview-fullscreen-image">`;
+        } else if (fileType === 'pdf') {
+            modalContent.innerHTML = `<iframe src="/file/${fileId}/preview" class="preview-fullscreen-iframe"></iframe>`;
+        }
+        
+        // set up action buttons
+        modalActions.innerHTML = `
+            <button onclick="closePreviewModal()" class="preview-action-btn preview-close-btn" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+            <a href="/file/${fileId}/download" class="preview-action-btn preview-download-btn" title="Download">
+                <i class="fas fa-download"></i>
+            </a>
+            ${canDelete ? `
+                <button onclick="deleteFileFromPreview(${fileId})" class="preview-action-btn preview-delete-btn" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            ` : ''}
+        `;
+        
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closePreviewModal() {
+        const modal = document.getElementById('previewModal');
+        modal.style.display = 'none';
+        document.getElementById('previewContent').innerHTML = '';
+        document.body.style.overflow = 'auto';
+    }
+    
+    function deleteFileFromPreview(fileId) {
+        if (confirm('Are you sure you want to delete this file?')) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/file/${fileId}/delete`;
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('previewModal');
+        if (event.target === modal) {
+            closePreviewModal();
+        }
+    }
     </script>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="preview-modal" style="display: none;">
+        <div id="previewContent" class="preview-modal-content"></div>
+        <div id="previewActions" class="preview-modal-actions"></div>
+    </div>
 
     {% if is_creator %}
     <div class="creator-actions">

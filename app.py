@@ -1,6 +1,7 @@
 # Main app redirection file. MESSY SO WATCH OUT
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import sqlite3
 import os
 from datetime import datetime, timedelta
@@ -12,6 +13,8 @@ import atexit
 
 app = Flask(__name__)
 app.secret_key = 'f47cba5d7844e3b4cc01994acb8de040c559faf14e9284d5530eeb02055d150b' # Generated. Important according to StackOverflow
+app.config['SECRET_KEY'] = app.secret_key
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 DATABASE = 'sessions.db'
 UPLOAD_FOLDER = 'uploads'
@@ -24,6 +27,18 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 # need to create uploads folder for file storage
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+# add file_context column if it doesn't exist
+def add_file_context_column():
+    conn = sqlite3.connect(DATABASE)
+    try:
+        conn.execute("ALTER TABLE files ADD COLUMN file_context TEXT DEFAULT 'study_material'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists
+    conn.close()
+
+add_file_context_column()
 
 # decorator to protect routes that need authentication
 def login_required(f):
@@ -280,12 +295,12 @@ def detail(session_id):
         ORDER BY m.created_at ASC
     ''', (session_id,)).fetchall()
     
-    # fetch all files uploaded to this session
+    # fetch only study material files (not chat files)
     files = conn.execute('''
         SELECT f.*, u.full_name, u.username
         FROM files f
         JOIN users u ON f.user_id = u.id
-        WHERE f.session_id = ?
+        WHERE f.session_id = ? AND (f.file_context IS NULL OR f.file_context = 'study_material')
         ORDER BY f.uploaded_at DESC
     ''', (session_id,)).fetchall()
     
@@ -348,17 +363,21 @@ def post_message(session_id):
         ''', (session_id, session['user_id'])).fetchone()
         conn.close()
         
+        # Broadcast message to all users in the session room via WebSocket
+        message_data = {
+            'id': new_message['id'],
+            'full_name': new_message['full_name'],
+            'username': new_message['username'],
+            'message_text': new_message['message_text'],
+            'created_at': new_message['created_at'],
+            'user_id': new_message['user_id']
+        }
+        socketio.emit('new_message', message_data, room=f'session_{session_id}')
+        
         if is_ajax:
             return jsonify({
                 'success': True,
-                'message': {
-                    'id': new_message['id'],
-                    'full_name': new_message['full_name'],
-                    'username': new_message['username'],
-                    'message_text': new_message['message_text'],
-                    'created_at': new_message['created_at'],
-                    'user_id': new_message['user_id']
-                }
+                'message': message_data
             })
         
         flash('Message posted!')
@@ -506,6 +525,9 @@ def upload_file(session_id):
     # detect if request is AJAX (from JS) or regular form
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', '')
     
+    # get file context (chat or study_material)
+    file_context = request.form.get('file_context', 'study_material')
+    
     # validate file exists in request
     if 'file' not in request.files:
         if is_ajax:
@@ -551,9 +573,9 @@ def upload_file(session_id):
         file_type = original_filename.rsplit('.', 1)[1].lower()
         
         # store file info in database
-        cursor = conn.execute('''INSERT INTO files (session_id, user_id, filename, original_filename, file_size, file_type) 
-                       VALUES (?, ?, ?, ?, ?, ?)''',
-                    (session_id, session['user_id'], filename, original_filename, file_size, file_type))
+        cursor = conn.execute('''INSERT INTO files (session_id, user_id, filename, original_filename, file_size, file_type, file_context) 
+                       VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                    (session_id, session['user_id'], filename, original_filename, file_size, file_type, file_context))
         file_id = cursor.lastrowid
         conn.commit()
         
@@ -562,33 +584,41 @@ def upload_file(session_id):
                                  (session['user_id'],)).fetchone()
         conn.close()
         
+        # Broadcast new file to all users in the session via WebSocket
+        file_data = {
+            'id': file_id,
+            'original_filename': original_filename,
+            'file_size': file_size,
+            'file_type': file_type,
+            'file_context': file_context,
+            'full_name': user_info['full_name'],
+            'username': user_info['username'],
+            'user_id': session['user_id'],
+            'uploaded_at': datetime.now().isoformat()
+        }
+        socketio.emit('new_file', file_data, room=f'session_{session_id}')
+        
         if is_ajax:
             return jsonify({
                 'success': True, 
                 'message': f'File "{original_filename}" uploaded successfully!',
-                'file': {
-                    'id': file_id,
-                    'original_filename': original_filename,
-                    'file_size': file_size,
-                    'file_type': file_type,
-                    'full_name': user_info['full_name'],
-                    'username': user_info['username'],
-                    'uploaded_at': datetime.now().isoformat()
-                }
+                'file': file_data
             }), 200
-        flash(f'File "{original_filename}" uploaded successfully!')
+        else:
+            flash(f'File "{original_filename}" uploaded successfully!')
+            return redirect(url_for('detail', session_id=session_id))
     else:
         error_msg = 'Invalid file type. Allowed types: images, PDFs, Office documents, text files, archives'
         conn.close()
         if is_ajax:
             return jsonify({'success': False, 'error': error_msg}), 400
-        flash(error_msg)
-    
-    return redirect(url_for('detail', session_id=session_id))
+        else:
+            flash(error_msg)
+            return redirect(url_for('detail', session_id=session_id))
 
 @app.route('/session/<int:session_id>/files')
 def get_files(session_id):
-    """API endpoint to fetch files for real-time updates"""
+    """API endpoint to fetch study material files for real-time updates"""
     last_file_id = request.args.get('last_id', 0, type=int)
     
     conn = get_db()
@@ -596,7 +626,7 @@ def get_files(session_id):
         SELECT f.*, u.full_name, u.username
         FROM files f
         JOIN users u ON f.user_id = u.id
-        WHERE f.session_id = ? AND f.id > ?
+        WHERE f.session_id = ? AND f.id > ? AND (f.file_context IS NULL OR f.file_context = 'study_material')
         ORDER BY f.uploaded_at ASC
     ''', (session_id, last_file_id)).fetchall()
     conn.close()
@@ -635,6 +665,29 @@ def download_file(file_id):
     
     return send_from_directory(app.config['UPLOAD_FOLDER'], file_record['filename'], 
                               as_attachment=True, download_name=file_record['original_filename'])
+
+@app.route('/file/<int:file_id>/preview')
+@login_required
+def preview_file(file_id):
+    """Serve file for inline preview (images, PDFs)"""
+    conn = get_db()
+    file_record = conn.execute('SELECT * FROM files WHERE id = ?', (file_id,)).fetchone()
+    
+    if not file_record:
+        conn.close()
+        flash('File not found')
+        return redirect(url_for('index'))
+    
+    # verify user has RSVP'd before allowing preview
+    rsvp = conn.execute('SELECT id FROM rsvps WHERE session_id = ? AND user_id = ?',
+                       (file_record['session_id'], session['user_id'])).fetchone()
+    conn.close()
+    
+    if not rsvp:
+        flash('You must RSVP to preview files from this session')
+        return redirect(url_for('detail', session_id=file_record['session_id']))
+    
+    return send_from_directory(app.config['UPLOAD_FOLDER'], file_record['filename'])
 
 @app.route('/file/<int:file_id>/delete', methods=['POST'])
 @login_required
@@ -1101,5 +1154,32 @@ scheduler.start()
 # shut down scheduler when app exits
 atexit.register(lambda: scheduler.shutdown())
 
+# WebSocket event handlers
+@socketio.on('join_session')
+def handle_join_session(data):
+    """User joins a session room for real-time updates"""
+    session_id = data.get('session_id')
+    if session_id:
+        room = f'session_{session_id}'
+        join_room(room)
+        print(f"User joined room: {room}")
+
+@socketio.on('leave_session')
+def handle_leave_session(data):
+    """User leaves a session room"""
+    session_id = data.get('session_id')
+    if session_id:
+        room = f'session_{session_id}'
+        leave_room(room)
+        print(f"User left room: {room}")
+
+@socketio.on('new_file_uploaded')
+def handle_file_upload(data):
+    """Broadcast new file upload to all users in session"""
+    session_id = data.get('session_id')
+    if session_id:
+        room = f'session_{session_id}'
+        socketio.emit('file_uploaded', data, room=room)
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
