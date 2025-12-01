@@ -8,13 +8,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- Mobile-responsive design with PWA support
-- Global search with SQLite FTS5
-- Flashcard system with spaced repetition (SM-2)
 - User profiles with avatars and preferences
 - Email notifications system
 - Video/audio call integration
 - Admin dashboard
+
+---
+
+## [1.14.0] - 2025-12-01
+
+### Added
+- **🎴 Flashcard System with Spaced Repetition (SM-2 Algorithm)**
+  - Create flashcard decks linked to sessions or standalone
+  - Add cards with question/answer format
+  - Study mode with 3D flip animation
+  - SM-2 spaced repetition algorithm for optimal learning
+  - Quality rating system (Forgot, Hard, Good, Easy)
+  - Automatic review scheduling based on performance
+  - Track learning progress per user
+  - Public/private deck visibility
+  - Beautiful card grid layout
+  - Mobile-responsive study interface
+  - Completion screen with statistics
+  - Keyboard shortcuts (Space to flip)
+
+### Technical
+- New database tables:
+  * `flashcard_decks`: Deck metadata (title, description, session link, visibility)
+  * `flashcards`: Individual cards (question/answer pairs)
+  * `flashcard_progress`: SM-2 algorithm tracking (easiness factor, interval, repetitions, next review date)
+- SM-2 algorithm implementation:
+  * Quality ratings 0-5 affect easiness factor (1.3 minimum)
+  * Interval calculation: 1 day → 6 days → exponential growth
+  * Forgotten cards restart from interval 0
+- Routes: `/flashcards`, `/flashcards/create`, `/flashcards/deck/<id>`, `/flashcards/deck/<id>/study`, `/api/flashcards/review`
+- Permission-based access control for public vs private decks
+- Migration script: `migrate_flashcards.py`
+
+### UI/UX
+- Flashcards navigation link in navbar
+- Deck grid with card counts, creator names, session tags
+- Study/View buttons on each deck card
+- Full study mode with flip animation (0.6s transition)
+- Rating buttons with color-coded feedback (red/orange/green/purple)
+- Progress counter during study sessions
+- Completion celebration with breakdown stats
+- Empty state guidance for new users
 
 ---
 

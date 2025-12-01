@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Flashcards - StudyFlow{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-layer-group"></i> Flashcard Decks</h1>
+    <a href="{{ url_for('create_deck') }}" class="btn-primary">
+        <i class="fas fa-plus"></i> Create New Deck
+    </a>
+</div>
+
+{% if decks %}
+<div class="decks-grid">
+    {% for deck in decks %}
+    <div class="deck-card">
+        <div class="deck-header">
+            <h3>{{ deck.title }}</h3>
+            {% if deck.session_title %}
+            <span class="deck-tag">
+                <i class="fas fa-book"></i> {{ deck.session_title }}
+            </span>
+            {% endif %}
+        </div>
+        
+        {% if deck.description %}
+        <p class="deck-description">{{ deck.description }}</p>
+        {% endif %}
+        
+        <div class="deck-stats">
+            <div class="stat-item">
+                <i class="fas fa-clone"></i>
+                <span>{{ deck.card_count }} card{{ 's' if deck.card_count != 1 else '' }}</span>
+            </div>
+            <div class="stat-item">
+                <i class="fas fa-user"></i>
+                <span>{{ deck.creator_name }}</span>
+            </div>
+            {% if deck.is_public %}
+            <span class="deck-badge public">
+                <i class="fas fa-globe"></i> Public
+            </span>
+            {% else %}
+            <span class="deck-badge private">
+                <i class="fas fa-lock"></i> Private
+            </span>
+            {% endif %}
+        </div>
+        
+        <div class="deck-actions">
+            <a href="{{ url_for('study_deck', deck_id=deck.id) }}" class="btn-study">
+                <i class="fas fa-brain"></i> Study
+            </a>
+            <a href="{{ url_for('view_deck', deck_id=deck.id) }}" class="btn-view">
+                <i class="fas fa-eye"></i> View Cards
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <i class="fas fa-layer-group empty-icon"></i>
+    <h2>No Flashcard Decks Yet</h2>
+    <p>Create your first deck to start learning with spaced repetition!</p>
+    <a href="{{ url_for('create_deck') }}" class="btn-primary">
+        <i class="fas fa-plus"></i> Create Your First Deck
+    </a>
+</div>
+{% endif %}
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.page-header h1 {
+    font-size: 2rem;
+    color: #2d3748;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.decks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.deck-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.deck-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+}
+
+.deck-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+.deck-header h3 {
+    font-size: 1.25rem;
+    color: #2d3748;
+    margin: 0;
+    flex: 1;
+}
+
+.deck-tag {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.deck-description {
+    color: #718096;
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.deck-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #4a5568;
+    font-size: 0.9rem;
+}
+
+.stat-item i {
+    color: #667eea;
+}
+
+.deck-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.deck-badge.public {
+    background: rgba(72, 187, 120, 0.1);
+    color: #38a169;
+}
+
+.deck-badge.private {
+    background: rgba(237, 137, 54, 0.1);
+    color: #dd6b20;
+}
+
+.deck-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn-study, .btn-view {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    text-align: center;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-study {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-study:hover {
+    transform: scale(1.05);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-view {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+}
+
+.btn-view:hover {
+    background: #667eea;
+    color: white;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    color: #cbd5e0;
+    margin-bottom: 1rem;
+}
+
+.empty-state h2 {
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+    color: #718096;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+    .decks-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .page-header h1 {
+        font-size: 1.5rem;
+    }
+}
+</style>
+{% endblock %}

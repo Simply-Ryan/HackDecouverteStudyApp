@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+
+{% block title %}Study: {{ deck.title }} - StudyFlow{% endblock %}
+
+{% block content %}
+<div class="study-container">
+    <div class="study-header">
+        <div>
+            <h1><i class="fas fa-brain"></i> {{ deck.title }}</h1>
+            <p class="study-info">
+                <span id="cardProgress">0/{{ cards|length }}</span> cards reviewed
+            </p>
+        </div>
+        <a href="{{ url_for('view_deck', deck_id=deck.id) }}" class="btn-secondary">
+            <i class="fas fa-times"></i> Exit Study
+        </a>
+    </div>
+
+    {% if cards %}
+    <div class="flashcard-container" id="flashcardContainer">
+        <div class="flashcard" id="flashcard" data-flipped="false">
+            <div class="flashcard-inner">
+                <div class="flashcard-front">
+                    <div class="card-label">Question</div>
+                    <div class="card-text" id="questionText"></div>
+                    <button class="flip-hint" onclick="flipCard()">
+                        <i class="fas fa-sync-alt"></i> Click to flip
+                    </button>
+                </div>
+                <div class="flashcard-back">
+                    <div class="card-label">Answer</div>
+                    <div class="card-text" id="answerText"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="study-controls" id="studyControls" style="display: none;">
+        <h3>How well did you know this?</h3>
+        <p class="rating-hint">Rate your confidence to improve spaced repetition</p>
+        <div class="rating-buttons">
+            <button class="rating-btn" data-quality="0" onclick="rateCard(0)">
+                <i class="fas fa-times-circle"></i>
+                <span>Forgot</span>
+                <small>Start over</small>
+            </button>
+            <button class="rating-btn" data-quality="1" onclick="rateCard(1)">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>Hard</span>
+                <small>Soon</small>
+            </button>
+            <button class="rating-btn" data-quality="3" onclick="rateCard(3)">
+                <i class="fas fa-check-circle"></i>
+                <span>Good</span>
+                <small>Normal</small>
+            </button>
+            <button class="rating-btn" data-quality="5" onclick="rateCard(5)">
+                <i class="fas fa-star-circle"></i>
+                <span>Easy</span>
+                <small>Longer</small>
+            </button>
+        </div>
+    </div>
+
+    <div class="completion-screen" id="completionScreen" style="display: none;">
+        <div class="completion-content">
+            <i class="fas fa-trophy completion-icon"></i>
+            <h2>Study Session Complete!</h2>
+            <p>You've reviewed all cards due for today.</p>
+            <div class="completion-stats" id="completionStats"></div>
+            <div class="completion-actions">
+                <a href="{{ url_for('view_deck', deck_id=deck.id) }}" class="btn-primary">
+                    <i class="fas fa-eye"></i> View Deck
+                </a>
+                <a href="{{ url_for('flashcards') }}" class="btn-secondary">
+                    <i class="fas fa-layer-group"></i> All Decks
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="no-cards-study">
+        <i class="fas fa-check-circle"></i>
+        <h2>All caught up!</h2>
+        <p>No cards due for review right now. Great job!</p>
+        <a href="{{ url_for('view_deck', deck_id=deck.id) }}" class="btn-primary">
+            <i class="fas fa-arrow-left"></i> Back to Deck
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+const cards = {{ cards|tojson }};
+let currentCardIndex = 0;
+let reviewedCount = 0;
+let ratings = {0: 0, 1: 0, 3: 0, 5: 0};
+
+function loadCard(index) {
+    if (index >= cards.length) {
+        showCompletion();
+        return;
+    }
+    
+    const card = cards[index];
+    document.getElementById('questionText').textContent = card.question;
+    document.getElementById('answerText').textContent = card.answer;
+    document.getElementById('flashcard').dataset.flipped = 'false';
+    document.getElementById('studyControls').style.display = 'none';
+    
+    updateProgress();
+}
+
+function flipCard() {
+    const flashcard = document.getElementById('flashcard');
+    const isFlipped = flashcard.dataset.flipped === 'true';
+    
+    if (!isFlipped) {
+        flashcard.dataset.flipped = 'true';
+        setTimeout(() => {
+            document.getElementById('studyControls').style.display = 'block';
+        }, 300);
+    }
+}
+
+function rateCard(quality) {
+    const card = cards[currentCardIndex];
+    ratings[quality]++;
+    
+    // Send review to server (SM-2 algorithm)
+    fetch('/api/flashcards/review', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            card_id: card.id,
+            quality: quality
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Card reviewed:', data);
+    });
+    
+    // Move to next card
+    reviewedCount++;
+    currentCardIndex++;
+    
+    setTimeout(() => {
+        loadCard(currentCardIndex);
+    }, 200);
+}
+
+function updateProgress() {
+    document.getElementById('cardProgress').textContent = 
+        `${reviewedCount}/${cards.length}`;
+}
+
+function showCompletion() {
+    document.getElementById('flashcardContainer').style.display = 'none';
+    document.getElementById('studyControls').style.display = 'none';
+    
+    const statsHTML = `
+        <div class="stat-box">
+            <div class="stat-number">${ratings[0]}</div>
+            <div class="stat-label">Forgot</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">${ratings[1]}</div>
+            <div class="stat-label">Hard</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">${ratings[3]}</div>
+            <div class="stat-label">Good</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">${ratings[5]}</div>
+            <div class="stat-label">Easy</div>
+        </div>
+    `;
+    
+    document.getElementById('completionStats').innerHTML = statsHTML;
+    document.getElementById('completionScreen').style.display = 'flex';
+}
+
+// Initialize first card
+if (cards.length > 0) {
+    loadCard(0);
+}
+
+// Allow space bar to flip card
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && document.getElementById('flashcard').dataset.flipped === 'false') {
+        e.preventDefault();
+        flipCard();
+    }
+});
+</script>
+
+<style>
+.study-container {
+    max-width: 800px;
+    margin: 2rem auto;
+}
+
+.study-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    background: white;
+    padding: 1.5rem 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.study-header h1 {
+    font-size: 1.75rem;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.study-info {
+    color: #718096;
+    font-size: 1rem;
+}
+
+.flashcard-container {
+    perspective: 1000px;
+    margin-bottom: 2rem;
+}
+
+.flashcard {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    cursor: pointer;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+}
+
+.flashcard[data-flipped="true"] {
+    transform: rotateY(180deg);
+}
+
+.flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+}
+
+.flashcard-front, .flashcard-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem;
+    text-align: center;
+}
+
+.flashcard-back {
+    transform: rotateY(180deg);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.card-label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 1.5rem;
+    opacity: 0.7;
+}
+
+.flashcard-back .card-label {
+    opacity: 0.9;
+}
+
+.card-text {
+    font-size: 1.75rem;
+    line-height: 1.4;
+    font-weight: 600;
+}
+
+.flip-hint {
+    position: absolute;
+    bottom: 2rem;
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.flip-hint:hover {
+    background: #667eea;
+    color: white;
+    transform: scale(1.05);
+}
+
+.study-controls {
+    background: white;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.study-controls h3 {
+    font-size: 1.5rem;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+}
+
+.rating-hint {
+    color: #718096;
+    margin-bottom: 1.5rem;
+}
+
+.rating-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.rating-btn {
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rating-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.rating-btn[data-quality="0"]:hover {
+    border-color: #f56565;
+    background: rgba(245, 101, 101, 0.05);
+}
+
+.rating-btn[data-quality="1"]:hover {
+    border-color: #ed8936;
+    background: rgba(237, 137, 54, 0.05);
+}
+
+.rating-btn[data-quality="3"]:hover {
+    border-color: #48bb78;
+    background: rgba(72, 187, 120, 0.05);
+}
+
+.rating-btn[data-quality="5"]:hover {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.rating-btn i {
+    font-size: 2rem;
+}
+
+.rating-btn[data-quality="0"] i { color: #f56565; }
+.rating-btn[data-quality="1"] i { color: #ed8936; }
+.rating-btn[data-quality="3"] i { color: #48bb78; }
+.rating-btn[data-quality="5"] i { color: #667eea; }
+
+.rating-btn span {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #2d3748;
+}
+
+.rating-btn small {
+    font-size: 0.85rem;
+    color: #a0aec0;
+}
+
+.completion-screen {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    min-height: 500px;
+}
+
+.completion-content {
+    background: white;
+    padding: 3rem;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    text-align: center;
+    max-width: 600px;
+}
+
+.completion-icon {
+    font-size: 5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 1rem;
+}
+
+.completion-content h2 {
+    font-size: 2rem;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+}
+
+.completion-content > p {
+    color: #718096;
+    margin-bottom: 2rem;
+}
+
+.completion-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-box {
+    background: #f7fafc;
+    padding: 1.5rem 1rem;
+    border-radius: 12px;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: #718096;
+}
+
+.completion-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.no-cards-study {
+    background: white;
+    padding: 4rem 2rem;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    text-align: center;
+}
+
+.no-cards-study i {
+    font-size: 4rem;
+    color: #48bb78;
+    margin-bottom: 1rem;
+}
+
+.no-cards-study h2 {
+    font-size: 2rem;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+}
+
+.no-cards-study p {
+    color: #718096;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+    .study-container {
+        margin: 1rem;
+    }
+    
+    .study-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .flashcard {
+        height: 350px;
+    }
+    
+    .card-text {
+        font-size: 1.4rem;
+    }
+    
+    .rating-buttons {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .completion-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .completion-actions {
+        flex-direction: column;
+    }
+    
+    .completion-actions .btn-primary,
+    .completion-actions .btn-secondary {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

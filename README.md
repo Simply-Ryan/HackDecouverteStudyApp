@@ -69,6 +69,14 @@ A collaborative study session management web application built for **HackDécouv
 - **Permission-Aware**: Only shows content you have access to
 - **Ranked Results**: Most relevant results appear first
 
+### 🎴 Flashcard System
+- **Spaced Repetition**: SM-2 algorithm for optimal learning retention
+- **Card Flip Animation**: Smooth 3D flip effect for question/answer
+- **Quality Ratings**: Rate cards as Forgot/Hard/Good/Easy for adaptive scheduling
+- **Deck Management**: Create decks, link to sessions, set public/private
+- **Study Mode**: Beautiful interface with progress tracking and statistics
+- **Auto Scheduling**: Cards automatically scheduled based on your performance
+
 ### 📅 Calendar Integration
 - **Add to Calendar**: Export sessions to Google Calendar, Outlook, or .ics file
 - **One-Click Sync**: Direct integration with Google and Outlook calendars

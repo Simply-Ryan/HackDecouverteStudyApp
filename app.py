@@ -1402,6 +1402,257 @@ def search():
     })
 
 # ============================================
+# FLASHCARD SYSTEM
+# ============================================
+
+@app.route('/flashcards')
+@login_required
+def flashcards():
+    """View all flashcard decks"""
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    # Get user's decks and public decks
+    c.execute('''
+        SELECT d.*, u.full_name as creator_name,
+               COUNT(DISTINCT f.id) as card_count,
+               s.title as session_title
+        FROM flashcard_decks d
+        LEFT JOIN flashcards f ON d.id = f.deck_id
+        LEFT JOIN users u ON d.user_id = u.id
+        LEFT JOIN sessions s ON d.session_id = s.id
+        WHERE d.user_id = ? OR d.is_public = 1
+        GROUP BY d.id
+        ORDER BY d.created_at DESC
+    ''', (session['user_id'],))
+    
+    decks = c.fetchall()
+    conn.close()
+    
+    return render_template('flashcards.html', decks=decks)
+
+@app.route('/flashcards/deck/<int:deck_id>')
+@login_required
+def view_deck(deck_id):
+    """View cards in a deck"""
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    # Get deck info
+    deck = c.execute('''
+        SELECT d.*, u.full_name as creator_name, s.title as session_title
+        FROM flashcard_decks d
+        LEFT JOIN users u ON d.user_id = u.id
+        LEFT JOIN sessions s ON d.session_id = s.id
+        WHERE d.id = ? AND (d.user_id = ? OR d.is_public = 1)
+    ''', (deck_id, session['user_id'])).fetchone()
+    
+    if not deck:
+        flash('Deck not found or access denied')
+        return redirect(url_for('flashcards'))
+    
+    # Get all cards
+    cards = c.execute('''
+        SELECT * FROM flashcards
+        WHERE deck_id = ?
+        ORDER BY id
+    ''', (deck_id,)).fetchall()
+    
+    conn.close()
+    
+    return render_template('deck_view.html', deck=deck, cards=cards)
+
+@app.route('/flashcards/create', methods=['GET', 'POST'])
+@login_required
+def create_deck():
+    """Create a new flashcard deck"""
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        session_id = request.form.get('session_id')
+        is_public = 1 if request.form.get('is_public') else 0
+        
+        if not title:
+            flash('Deck title is required')
+            return redirect(url_for('create_deck'))
+        
+        conn = get_db()
+        
+        # Verify session exists if provided
+        if session_id:
+            session_check = conn.execute('SELECT id FROM sessions WHERE id = ?', (session_id,)).fetchone()
+            if not session_check:
+                session_id = None
+        
+        conn.execute('''
+            INSERT INTO flashcard_decks (title, description, session_id, user_id, is_public)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (title, description, session_id, session['user_id'], is_public))
+        
+        deck_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        conn.commit()
+        conn.close()
+        
+        flash('Deck created successfully!')
+        return redirect(url_for('view_deck', deck_id=deck_id))
+    
+    # GET - show form
+    conn = get_db()
+    sessions_list = conn.execute('''
+        SELECT s.id, s.title, s.subject
+        FROM sessions s
+        WHERE s.creator_id = ? OR s.id IN (
+            SELECT session_id FROM rsvps WHERE user_id = ?
+        )
+        ORDER BY s.session_date DESC
+    ''', (session['user_id'], session['user_id'])).fetchall()
+    conn.close()
+    
+    return render_template('create_deck.html', sessions=sessions_list)
+
+@app.route('/flashcards/deck/<int:deck_id>/add-card', methods=['POST'])
+@login_required
+def add_card(deck_id):
+    """Add a card to a deck"""
+    conn = get_db()
+    
+    # Verify deck ownership
+    deck = conn.execute('SELECT user_id FROM flashcard_decks WHERE id = ?', (deck_id,)).fetchone()
+    if not deck or deck['user_id'] != session['user_id']:
+        conn.close()
+        flash('Access denied')
+        return redirect(url_for('flashcards'))
+    
+    question = request.form.get('question', '').strip()
+    answer = request.form.get('answer', '').strip()
+    
+    if not question or not answer:
+        conn.close()
+        flash('Question and answer are required')
+        return redirect(url_for('view_deck', deck_id=deck_id))
+    
+    conn.execute('''
+        INSERT INTO flashcards (deck_id, question, answer)
+        VALUES (?, ?, ?)
+    ''', (deck_id, question, answer))
+    
+    conn.commit()
+    conn.close()
+    
+    flash('Card added successfully!')
+    return redirect(url_for('view_deck', deck_id=deck_id))
+
+@app.route('/flashcards/deck/<int:deck_id>/study')
+@login_required
+def study_deck(deck_id):
+    """Study mode - spaced repetition"""
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    # Get deck info
+    deck = c.execute('''
+        SELECT d.*, u.full_name as creator_name
+        FROM flashcard_decks d
+        LEFT JOIN users u ON d.user_id = u.id
+        WHERE d.id = ? AND (d.user_id = ? OR d.is_public = 1)
+    ''', (deck_id, session['user_id'])).fetchone()
+    
+    if not deck:
+        flash('Deck not found or access denied')
+        return redirect(url_for('flashcards'))
+    
+    # Get cards due for review (SM-2 algorithm)
+    cards = c.execute('''
+        SELECT f.*, p.easiness_factor, p.interval, p.repetitions, p.next_review_date
+        FROM flashcards f
+        LEFT JOIN flashcard_progress p ON f.id = p.flashcard_id AND p.user_id = ?
+        WHERE f.deck_id = ?
+        AND (p.next_review_date IS NULL OR p.next_review_date <= datetime('now'))
+        ORDER BY p.next_review_date ASC
+    ''', (session['user_id'], deck_id)).fetchall()
+    
+    conn.close()
+    
+    return render_template('study_mode.html', deck=deck, cards=cards)
+
+@app.route('/api/flashcards/review', methods=['POST'])
+@login_required
+def review_card():
+    """Record a card review and update SM-2 algorithm"""
+    data = request.get_json()
+    card_id = data.get('card_id')
+    quality = int(data.get('quality', 0))  # 0-5 rating
+    
+    if not card_id or quality < 0 or quality > 5:
+        return jsonify({'error': 'Invalid data'}), 400
+    
+    conn = get_db()
+    
+    # Get current progress
+    progress = conn.execute('''
+        SELECT * FROM flashcard_progress
+        WHERE flashcard_id = ? AND user_id = ?
+    ''', (card_id, session['user_id'])).fetchone()
+    
+    # SM-2 algorithm calculations
+    if progress:
+        ef = progress['easiness_factor']
+        interval = progress['interval']
+        repetitions = progress['repetitions']
+    else:
+        ef = 2.5
+        interval = 0
+        repetitions = 0
+    
+    # Update easiness factor
+    ef = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+    if ef < 1.3:
+        ef = 1.3
+    
+    # Update interval and repetitions
+    if quality < 3:
+        repetitions = 0
+        interval = 0
+    else:
+        if repetitions == 0:
+            interval = 1
+        elif repetitions == 1:
+            interval = 6
+        else:
+            interval = int(interval * ef)
+        repetitions += 1
+    
+    # Calculate next review date
+    next_review = datetime.now() + timedelta(days=interval)
+    
+    # Update or insert progress
+    if progress:
+        conn.execute('''
+            UPDATE flashcard_progress
+            SET easiness_factor = ?, interval = ?, repetitions = ?,
+                next_review_date = ?, last_reviewed = datetime('now')
+            WHERE flashcard_id = ? AND user_id = ?
+        ''', (ef, interval, repetitions, next_review, card_id, session['user_id']))
+    else:
+        conn.execute('''
+            INSERT INTO flashcard_progress
+            (flashcard_id, user_id, easiness_factor, interval, repetitions, next_review_date, last_reviewed)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        ''', (card_id, session['user_id'], ef, interval, repetitions, next_review))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'next_review': next_review.isoformat(),
+        'interval_days': interval
+    })
+
+# ============================================
 # SESSION RECORDINGS ROUTES
 # ============================================
 

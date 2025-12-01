@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}{{ deck.title }} - StudyFlow{% endblock %}
+
+{% block content %}
+<div class="deck-view-header">
+    <div>
+        <h1><i class="fas fa-layer-group"></i> {{ deck.title }}</h1>
+        {% if deck.description %}
+        <p class="deck-subtitle">{{ deck.description }}</p>
+        {% endif %}
+        <div class="deck-meta">
+            <span><i class="fas fa-user"></i> {{ deck.creator_name }}</span>
+            {% if deck.session_title %}
+            <span><i class="fas fa-book"></i> {{ deck.session_title }}</span>
+            {% endif %}
+            <span><i class="fas fa-clone"></i> {{ cards|length }} card{{ 's' if cards|length != 1 else '' }}</span>
+        </div>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('study_deck', deck_id=deck.id) }}" class="btn-primary">
+            <i class="fas fa-brain"></i> Study Now
+        </a>
+        <a href="{{ url_for('flashcards') }}" class="btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Decks
+        </a>
+    </div>
+</div>
+
+{% if deck.user_id == session.user_id %}
+<div class="add-card-section">
+    <h2><i class="fas fa-plus"></i> Add New Card</h2>
+    <form method="POST" action="{{ url_for('add_card', deck_id=deck.id) }}" class="add-card-form">
+        <div class="card-input-group">
+            <div class="form-group">
+                <label for="question">Question/Front</label>
+                <textarea id="question" name="question" rows="3" required 
+                          placeholder="Enter the question or term"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="answer">Answer/Back</label>
+                <textarea id="answer" name="answer" rows="3" required 
+                          placeholder="Enter the answer or definition"></textarea>
+            </div>
+        </div>
+        <button type="submit" class="btn-add-card">
+            <i class="fas fa-plus-circle"></i> Add Card
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<div class="cards-section">
+    <h2><i class="fas fa-clone"></i> All Cards ({{ cards|length }})</h2>
+    
+    {% if cards %}
+    <div class="cards-list">
+        {% for card in cards %}
+        <div class="flashcard-preview">
+            <div class="card-number">#{{ loop.index }}</div>
+            <div class="card-content">
+                <div class="card-side">
+                    <strong>Q:</strong> {{ card.question }}
+                </div>
+                <div class="card-divider">
+                    <i class="fas fa-arrow-down"></i>
+                </div>
+                <div class="card-side">
+                    <strong>A:</strong> {{ card.answer }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-cards">
+        <i class="fas fa-clone"></i>
+        <p>No cards yet. Add your first card above!</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.deck-view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    background: white;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.deck-view-header h1 {
+    font-size: 2rem;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.deck-subtitle {
+    color: #718096;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+}
+
+.deck-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    color: #4a5568;
+    font-size: 0.9rem;
+}
+
+.deck-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.deck-meta i {
+    color: #667eea;
+}
+
+.header-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.add-card-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+.add-card-section h2 {
+    font-size: 1.5rem;
+    color: #2d3748;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.add-card-form {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.card-input-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    flex: 1;
+}
+
+.form-group {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+}
+
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 1rem;
+    resize: vertical;
+    transition: all 0.3s;
+}
+
+.form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-add-card {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-add-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+.cards-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.cards-section h2 {
+    font-size: 1.5rem;
+    color: #2d3748;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.cards-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.flashcard-preview {
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+    transition: all 0.3s;
+    position: relative;
+}
+
+.flashcard-preview:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.card-number {
+    position: absolute;
+    top: -10px;
+    right: 15px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.card-content {
+    margin-top: 0.5rem;
+}
+
+.card-side {
+    padding: 0.75rem;
+    background: #f7fafc;
+    border-radius: 8px;
+    line-height: 1.5;
+}
+
+.card-side strong {
+    color: #667eea;
+    margin-right: 0.5rem;
+}
+
+.card-divider {
+    text-align: center;
+    padding: 0.5rem;
+    color: #cbd5e0;
+}
+
+.no-cards {
+    text-align: center;
+    padding: 3rem;
+    color: #a0aec0;
+}
+
+.no-cards i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .deck-view-header {
+        flex-direction: column;
+    }
+    
+    .header-actions {
+        width: 100%;
+    }
+    
+    .header-actions .btn-primary,
+    .header-actions .btn-secondary {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .add-card-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .card-input-group {
+        grid-template-columns: 1fr;
+    }
+    
+    .btn-add-card {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .cards-list {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
