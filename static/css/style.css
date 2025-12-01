@@ -171,6 +171,227 @@ body {
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
+/* Notification Bell Styles */
+.notification-bell {
+    position: relative;
+    cursor: pointer;
+    padding: 0.5rem;
+    transition: all 0.3s;
+}
+
+.notification-bell:hover {
+    transform: scale(1.1);
+}
+
+.notification-bell i {
+    font-size: 1.5rem;
+    color: #667eea;
+    transition: color 0.3s;
+}
+
+.notification-bell:hover i {
+    color: #764ba2;
+}
+
+.notification-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(245, 101, 101, 0.4);
+}
+
+.notification-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    width: 400px;
+    max-height: 500px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    z-index: 1000;
+}
+
+.notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 2px solid #e2e8f0;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+}
+
+.notification-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #2d3748;
+    font-weight: 700;
+}
+
+.mark-all-read {
+    background: none;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    transition: all 0.3s;
+}
+
+.mark-all-read:hover {
+    background: rgba(102, 126, 234, 0.1);
+    color: #764ba2;
+}
+
+.notification-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.notification-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.notification-list::-webkit-scrollbar-track {
+    background: #f7fafc;
+}
+
+.notification-list::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+}
+
+.notification-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e2e8f0;
+    transition: all 0.3s;
+    cursor: pointer;
+    position: relative;
+}
+
+.notification-item:hover {
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.notification-item.unread {
+    background: rgba(102, 126, 234, 0.08);
+}
+
+.notification-item.unread::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.notification-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.2rem;
+}
+
+.notification-icon.invitation {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+}
+
+.notification-icon.reminder {
+    background: rgba(237, 137, 54, 0.1);
+    color: #ed8936;
+}
+
+.notification-icon.reply {
+    background: rgba(56, 178, 172, 0.1);
+    color: #38b2ac;
+}
+
+.notification-icon.mention {
+    background: rgba(159, 122, 234, 0.1);
+    color: #9f7aea;
+}
+
+.notification-icon.default {
+    background: rgba(160, 174, 192, 0.1);
+    color: #718096;
+}
+
+.notification-content {
+    flex: 1;
+}
+
+.notification-content h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 0.95rem;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+.notification-content p {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.875rem;
+    color: #4a5568;
+    line-height: 1.4;
+}
+
+.notification-content small {
+    font-size: 0.75rem;
+    color: #a0aec0;
+}
+
+.notification-link {
+    flex-shrink: 0;
+    color: #667eea;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    transition: all 0.3s;
+}
+
+.notification-link:hover {
+    background: rgba(102, 126, 234, 0.1);
+    color: #764ba2;
+}
+
+.no-notifications, .loading-notifications {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #a0aec0;
+    font-style: italic;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .notification-dropdown {
+        width: 320px;
+        right: -50px;
+    }
+}
+
 /* ============================================
    3. BUTTONS
    ============================================ */
@@ -758,11 +979,45 @@ body {
     border: 2px solid #667eea;
     transition: all 0.3s ease;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .participant-list li:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+}
+
+/* Presence Indicator */
+.presence-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.3rem;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.presence-indicator.online {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    animation: pulse 2s infinite;
+}
+
+.presence-indicator.offline {
+    background: #9ca3af;
+    box-shadow: none;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(16, 185, 129, 0.8);
+    }
 }
 
 /* ============================================
@@ -954,6 +1209,337 @@ body {
 
 .file-upload-btn:active {
     transform: translateY(0);
+}
+
+/* --- Message Reactions --- */
+.message-reactions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.reaction-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.6rem;
+    background: rgba(102, 126, 234, 0.1);
+    border: 2px solid rgba(102, 126, 234, 0.2);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.reaction-badge:hover {
+    background: rgba(102, 126, 234, 0.2);
+    border-color: rgba(102, 126, 234, 0.4);
+    transform: scale(1.05);
+}
+
+.reaction-badge.user-reacted {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: #667eea;
+    font-weight: 600;
+}
+
+.reaction-picker {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.6rem;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    position: absolute;
+    z-index: 100;
+    margin-top: 0.5rem;
+    animation: fadeIn 0.2s ease;
+}
+
+.emoji-option {
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.4rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.emoji-option:hover {
+    background: rgba(102, 126, 234, 0.1);
+    transform: scale(1.2);
+}
+
+/* --- Message Action Buttons --- */
+.message-actions-btns {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.message-item:hover .message-actions-btns {
+    opacity: 1;
+}
+
+.msg-action-btn {
+    background: rgba(102, 126, 234, 0.1);
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #667eea;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.msg-action-btn:hover {
+    background: rgba(102, 126, 234, 0.2);
+    transform: translateY(-1px);
+}
+
+.msg-action-btn i {
+    font-size: 0.85rem;
+}
+
+/* --- Reply Reference --- */
+.reply-reference {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    margin-bottom: 0.5rem;
+    background: rgba(102, 126, 234, 0.08);
+    border-left: 3px solid #667eea;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #667eea;
+}
+
+.reply-reference i {
+    font-size: 0.9rem;
+}
+
+/* --- Reply Indicator (in message form) --- */
+.reply-indicator {
+    margin-bottom: 0.8rem;
+}
+
+.reply-context {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.8rem 1rem;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    border-left: 4px solid #667eea;
+    border-radius: 10px;
+}
+
+.reply-context i {
+    color: #667eea;
+    font-size: 1rem;
+}
+
+.reply-context span {
+    flex: 1;
+    font-size: 0.9rem;
+    color: #667eea;
+    font-weight: 500;
+}
+
+.cancel-reply-btn {
+    background: none;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    padding: 0.3rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cancel-reply-btn:hover {
+    background: rgba(102, 126, 234, 0.2);
+}
+
+.cancel-reply-btn i {
+    font-size: 0.9rem;
+}
+
+/* --- File Messages in Chat --- */
+.file-message {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border-left: 4px solid #667eea;
+}
+
+.file-message.own-message {
+    border-left-color: #10b981;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.file-message-content {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+.file-preview-thumb {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #e5e7eb;
+}
+
+.file-preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.file-preview-thumb img:hover {
+    transform: scale(1.05);
+}
+
+.file-icon {
+    font-size: 2.5rem;
+}
+
+.pdf-icon {
+    color: #dc2626;
+}
+
+.doc-icon {
+    color: #2563eb;
+}
+
+.excel-icon {
+    color: #16a34a;
+}
+
+.ppt-icon {
+    color: #ea580c;
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #1f2937;
+    margin-bottom: 0.3rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-size {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+}
+
+.file-actions {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.file-action-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: #667eea;
+    text-decoration: none;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(102, 126, 234, 0.1);
+    transition: all 0.2s ease;
+}
+
+.file-action-link:hover {
+    background: rgba(102, 126, 234, 0.2);
+    transform: translateY(-1px);
+}
+
+.file-action-link i {
+    font-size: 0.8rem;
+}
+
+/* --- Typing Indicator --- */
+.typing-indicator {
+    display: flex;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    margin-top: 0.5rem;
+    background: rgba(102, 126, 234, 0.05);
+    border-radius: 10px;
+    animation: fadeIn 0.3s ease;
+}
+
+.typing-dots {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.typing-user {
+    font-size: 0.9rem;
+    color: #667eea;
+    font-weight: 500;
+    margin-right: 0.3rem;
+}
+
+.typing-dots .dot {
+    width: 8px;
+    height: 8px;
+    background: #667eea;
+    border-radius: 50%;
+    animation: typingDot 1.4s infinite ease-in-out;
+}
+
+.typing-dots .dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dots .dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+.typing-dots .dot:nth-child(4) {
+    animation-delay: 0.6s;
+}
+
+@keyframes typingDot {
+    0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.7;
+    }
+    30% {
+        transform: translateY(-10px);
+        opacity: 1;
+    }
 }
 
 /* --- Reminder System --- */

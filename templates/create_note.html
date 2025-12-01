@@ -34,6 +34,8 @@
             <label for="content">Note Content *</label>
             <textarea id="content" name="content" rows="15" required placeholder="Write your notes here..."></textarea>
         </div>
+        
+        <input type="hidden" id="session_id" name="session_id" value="{{ session_id }}">
 
         <div class="form-group checkbox-group">
             <label>
@@ -49,6 +51,63 @@
         </div>
     </form>
 </div>
+
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+tinymce.init({
+    selector: '#content',
+    height: 500,
+    menubar: true,
+    plugins: [
+        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+        'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+    ],
+    toolbar: 'undo redo | blocks | ' +
+        'bold italic forecolor | alignleft aligncenter ' +
+        'alignright alignjustify | bullist numlist outdent indent | ' +
+        'removeformat | help',
+    content_style: 'body { font-family:Inter,sans-serif; font-size:14px }',
+    auto_focus: 'content',
+    branding: false,
+    promotion: false,
+    setup: function(editor) {
+        // Auto-save every 30 seconds
+        setInterval(function() {
+            if (editor.isDirty()) {
+                const content = editor.getContent();
+                const title = document.getElementById('title').value;
+                if (title && content) {
+                    // Save draft to localStorage
+                    localStorage.setItem('note_draft', JSON.stringify({
+                        title: title,
+                        content: content,
+                        timestamp: new Date().toISOString()
+                    }));
+                    console.log('Draft auto-saved');
+                }
+            }
+        }, 30000);
+        
+        // Load draft if exists
+        editor.on('init', function() {
+            const draft = localStorage.getItem('note_draft');
+            if (draft) {
+                const draftData = JSON.parse(draft);
+                if (confirm('A draft was found. Would you like to restore it?')) {
+                    document.getElementById('title').value = draftData.title;
+                    editor.setContent(draftData.content);
+                }
+            }
+        });
+    }
+});
+
+// Clear draft on successful submit
+document.querySelector('form').addEventListener('submit', function() {
+    localStorage.removeItem('note_draft');
+});
+</script>
 
 <style>
 .form-container {

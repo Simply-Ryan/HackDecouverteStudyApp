@@ -105,9 +105,10 @@
     <div class="participants-section">
         <h2>Participants ({{ current_count }} / {{ max_participants }})</h2>
         {% if rsvps %}
-            <ul class="participant-list">
+            <ul class="participant-list" id="participantList">
                 {% for rsvp in rsvps %}
-                    <li>
+                    <li data-user-id="{{ rsvp.user_id }}">
+                        <span class="presence-indicator offline" id="presence-{{ rsvp.user_id }}"></span>
                         👤 {{ rsvp.full_name }}
                         <span class="username-badge">@{{ rsvp.username }}</span>
                     </li>
@@ -124,19 +125,98 @@
         
         <div class="messages-container">
             {% if messages %}
-                {% for message in messages %}
-                    <div class="message-item{% if session.user_id == message.user_id %} own-message{% endif %}" data-message-id="{{ message.id }}">
-                        <div class="message-header">
-                            <strong class="sender-name">{{ message.full_name }}</strong>
-                            <span class="username-badge">@{{ message.username }}</span>
-                            <span class="message-time">{{ message.created_at }}</span>
+                {% for item in messages %}
+                    {% if item.type == 'message' %}
+                        <div class="message-item{% if session.user_id == item.user_id %} own-message{% endif %}" data-message-id="{{ item.id }}" data-type="message">
+                            <div class="message-header">
+                                <strong class="sender-name">{{ item.full_name }}</strong>
+                                <span class="username-badge">@{{ item.username }}</span>
+                                <span class="message-time">{{ item.created_at }}</span>
+                            </div>
+                            {% if item.parent_info %}
+                                <div class="reply-reference">
+                                    <i class="fas fa-reply"></i>
+                                    <span>Replying to {{ item.parent_info.author }}: "{% if item.parent_info.text|length > 50 %}{{ item.parent_info.text[:50] }}...{% else %}{{ item.parent_info.text }}{% endif %}"</span>
+                                </div>
+                            {% endif %}
+                            <div class="message-text">{{ item.message_text }}</div>
+                            {% if item.reactions %}
+                                <div class="message-reactions">
+                                    {% for reaction in item.reactions %}
+                                        <span class="reaction-badge {% if session.user_id in reaction.user_ids %}user-reacted{% endif %}" 
+                                              data-emoji="{{ reaction.emoji }}" 
+                                              onclick="toggleReaction({{ item.id }}, '{{ reaction.emoji }}')"
+                                              title="{{ reaction.count }} reaction{% if reaction.count > 1 %}s{% endif %}">
+                                            {{ reaction.emoji }} {{ reaction.count }}
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            {% if 'user_id' in session %}
+                                <div class="message-actions-btns">
+                                    <button class="msg-action-btn" onclick="showReplyForm({{ item.id }}, '{{ item.full_name }}', '{{ item.message_text|replace("'", "\\'") }}')" title="Reply">
+                                        <i class="fas fa-reply"></i>
+                                    </button>
+                                    <button class="msg-action-btn reaction-picker-btn" onclick="showReactionPicker({{ item.id }})" title="React">
+                                        <i class="fas fa-smile"></i>
+                                    </button>
+                                </div>
+                            {% endif %}
                         </div>
-                        <div class="message-text">{{ message.message_text }}</div>
-                    </div>
+                    {% elif item.type == 'file' %}
+                        <div class="message-item file-message{% if session.user_id == item.user_id %} own-message{% endif %}" data-file-id="{{ item.file_id }}" data-type="file">
+                            <div class="message-header">
+                                <strong class="sender-name">{{ item.full_name }}</strong>
+                                <span class="username-badge">@{{ item.username }}</span>
+                                <span class="message-time">{{ item.created_at }}</span>
+                            </div>
+                            <div class="file-message-content">
+                                <div class="file-preview-thumb">
+                                    {% if item.file_type in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                                        <img src="{{ url_for('file_preview', file_id=item.file_id) }}" alt="{{ item.original_filename }}" onclick="openFullPreview({{ item.file_id }})">
+                                    {% elif item.file_type == 'pdf' %}
+                                        <i class="fas fa-file-pdf file-icon pdf-icon"></i>
+                                    {% elif item.file_type in ['doc', 'docx'] %}
+                                        <i class="fas fa-file-word file-icon doc-icon"></i>
+                                    {% elif item.file_type in ['xls', 'xlsx'] %}
+                                        <i class="fas fa-file-excel file-icon excel-icon"></i>
+                                    {% elif item.file_type in ['ppt', 'pptx'] %}
+                                        <i class="fas fa-file-powerpoint file-icon ppt-icon"></i>
+                                    {% else %}
+                                        <i class="fas fa-file file-icon"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="file-info">
+                                    <div class="file-name">{{ item.original_filename }}</div>
+                                    <div class="file-size">{{ (item.file_size / 1024)|round(1) }} KB</div>
+                                    <div class="file-actions">
+                                        {% if item.file_type in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'] %}
+                                            <a href="{{ url_for('file_preview', file_id=item.file_id) }}" target="_blank" class="file-action-link">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        {% endif %}
+                                        <a href="{{ url_for('download_file', file_id=item.file_id) }}" class="file-action-link">
+                                            <i class="fas fa-download"></i> Download
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
                 {% endfor %}
             {% else %}
                 <p class="empty-state">No messages yet. Start the conversation!</p>
             {% endif %}
+        </div>
+
+        <!-- Typing indicator -->
+        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+            <div class="typing-dots">
+                <span class="typing-user"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </div>
         </div>
 
         {% if 'user_id' in session %}
@@ -188,23 +268,125 @@
         }
 
         // create message HTML element
-        function createMessageElement(msg) {
+        function createMessageElement(item) {
             const div = document.createElement('div');
-            div.className = 'message-item';
-            div.dataset.messageId = msg.id;
+            const isOwnMessage = currentUserId && item.user_id === currentUserId;
             
-            const isOwnMessage = currentUserId && msg.user_id === currentUserId;
+            if (item.type === 'file') {
+                // File message
+                div.className = 'message-item file-message';
+                if (isOwnMessage) div.classList.add('own-message');
+                div.dataset.fileId = item.file_id;
+                div.dataset.type = 'file';
+                
+                const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                const isImage = imageTypes.includes(item.file_type.toLowerCase());
+                
+                let previewHtml = '';
+                if (isImage) {
+                    previewHtml = `<img src="/file/${item.file_id}/preview" alt="${escapeHtml(item.original_filename)}" onclick="openFullPreview(${item.file_id})">`;
+                } else if (item.file_type === 'pdf') {
+                    previewHtml = '<i class="fas fa-file-pdf file-icon pdf-icon"></i>';
+                } else if (['doc', 'docx'].includes(item.file_type)) {
+                    previewHtml = '<i class="fas fa-file-word file-icon doc-icon"></i>';
+                } else if (['xls', 'xlsx'].includes(item.file_type)) {
+                    previewHtml = '<i class="fas fa-file-excel file-icon excel-icon"></i>';
+                } else if (['ppt', 'pptx'].includes(item.file_type)) {
+                    previewHtml = '<i class="fas fa-file-powerpoint file-icon ppt-icon"></i>';
+                } else {
+                    previewHtml = '<i class="fas fa-file file-icon"></i>';
+                }
+                
+                const viewLink = (isImage || item.file_type === 'pdf') 
+                    ? `<a href="/file/${item.file_id}/preview" target="_blank" class="file-action-link"><i class="fas fa-eye"></i> View</a>`
+                    : '';
+                
+                div.innerHTML = `
+                    <div class="message-header">
+                        <strong class="sender-name">${escapeHtml(item.full_name)}</strong>
+                        <span class="username-badge">@${escapeHtml(item.username)}</span>
+                        <span class="message-time">${escapeHtml(item.created_at || 'Just now')}</span>
+                    </div>
+                    <div class="file-message-content">
+                        <div class="file-preview-thumb">
+                            ${previewHtml}
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtml(item.original_filename)}</div>
+                            <div class="file-size">${formatFileSize(item.file_size)}</div>
+                            <div class="file-actions">
+                                ${viewLink}
+                                <a href="/file/${item.file_id}/download" class="file-action-link">
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                return div;
+            }
+            
+            // Regular text message
+            div.className = 'message-item';
+            div.dataset.messageId = item.id;
+            div.dataset.type = 'message';
+            
             if (isOwnMessage) {
                 div.classList.add('own-message');
             }
             
+            // Build parent message reference if this is a reply
+            let parentHtml = '';
+            if (item.parent_info) {
+                const truncatedText = item.parent_info.text.length > 50 
+                    ? item.parent_info.text.substring(0, 50) + '...'
+                    : item.parent_info.text;
+                parentHtml = `
+                    <div class="reply-reference">
+                        <i class="fas fa-reply"></i>
+                        <span>Replying to ${escapeHtml(item.parent_info.author)}: "${escapeHtml(truncatedText)}"</span>
+                    </div>
+                `;
+            }
+            
+            // Build reactions HTML
+            let reactionsHtml = '';
+            if (item.reactions && item.reactions.length > 0) {
+                const reactionBadges = item.reactions.map(r => {
+                    const isUserReaction = currentUserId && r.user_ids.includes(currentUserId);
+                    return `<span class="reaction-badge ${isUserReaction ? 'user-reacted' : ''}" 
+                                  data-emoji="${r.emoji}" 
+                                  onclick="toggleReaction(${item.id}, '${r.emoji}')"
+                                  title="${r.count} reaction${r.count > 1 ? 's' : ''}">
+                                ${r.emoji} ${r.count}
+                            </span>`;
+                }).join('');
+                reactionsHtml = `<div class="message-reactions">${reactionBadges}</div>`;
+            }
+            
+            // Action buttons (reply and react)
+            const actionsHtml = currentUserId ? `
+                <div class="message-actions-btns">
+                    <button class="msg-action-btn" onclick="showReplyForm(${item.id}, '${escapeHtml(item.full_name)}', '${escapeHtml(item.message_text)}')" title="Reply">
+                        <i class="fas fa-reply"></i>
+                    </button>
+                    <button class="msg-action-btn reaction-picker-btn" onclick="showReactionPicker(${item.id})" title="React">
+                        <i class="fas fa-smile"></i>
+                    </button>
+                </div>
+            ` : '';
+            
             div.innerHTML = `
                 <div class="message-header">
-                    <strong class="sender-name">${escapeHtml(msg.full_name)}</strong>
-                    <span class="username-badge">@${escapeHtml(msg.username)}</span>
-                    <span class="message-time">${escapeHtml(msg.created_at)}</span>
+                    <strong class="sender-name">${escapeHtml(item.full_name)}</strong>
+                    <span class="username-badge">@${escapeHtml(item.username)}</span>
+                    <span class="message-time">${escapeHtml(item.created_at)}</span>
                 </div>
-                <div class="message-text">${escapeHtml(msg.message_text)}</div>
+                ${parentHtml}
+                <div class="message-text">${escapeHtml(item.message_text)}</div>
+                ${reactionsHtml}
+                ${actionsHtml}
             `;
             
             return div;
@@ -234,7 +416,20 @@
         const sessionId = {{ study_session.id }};
 
         // Join the session room for real-time updates
-        socket.emit('join_session', { session_id: sessionId });
+        socket.emit('join_session', { 
+            session_id: sessionId,
+            user_id: currentUserId,
+            user_name: currentUserName
+        });
+        
+        // Mark current user as online
+        if (currentUserId) {
+            const currentPresence = document.getElementById(`presence-${currentUserId}`);
+            if (currentPresence) {
+                currentPresence.classList.remove('offline');
+                currentPresence.classList.add('online');
+            }
+        }
 
         // Listen for new messages from WebSocket
         socket.on('new_message', function(msg) {
@@ -254,6 +449,93 @@
             }
         });
 
+        // Listen for new file uploads in chat
+        socket.on('chat_file', function(file) {
+            // remove empty state if it exists
+            const emptyState = messagesContainer.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const fileElement = createMessageElement(file);
+            messagesContainer.appendChild(fileElement);
+            
+            // scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        });
+
+        // Typing indicator logic
+        let typingTimeout;
+        const typingIndicator = document.getElementById('typingIndicator');
+        const typingUserSpan = typingIndicator ? typingIndicator.querySelector('.typing-user') : null;
+        const currentUserName = '{{ session.get("full_name", "") }}';
+        let activeTypers = new Set();
+
+        // Listen for typing events from other users
+        socket.on('user_typing', function(data) {
+            if (data.user_name !== currentUserName) {
+                if (data.is_typing) {
+                    activeTypers.add(data.user_name);
+                } else {
+                    activeTypers.delete(data.user_name);
+                }
+                updateTypingIndicator();
+            }
+        });
+
+        function updateTypingIndicator() {
+            if (activeTypers.size > 0) {
+                const names = Array.from(activeTypers);
+                let typingText = '';
+                if (names.length === 1) {
+                    typingText = `${names[0]} is typing`;
+                } else if (names.length === 2) {
+                    typingText = `${names[0]} and ${names[1]} are typing`;
+                } else {
+                    typingText = `${names.length} people are typing`;
+                }
+                if (typingUserSpan) {
+                    typingUserSpan.textContent = typingText;
+                }
+                if (typingIndicator) {
+                    typingIndicator.style.display = 'flex';
+                }
+            } else {
+                if (typingIndicator) {
+                    typingIndicator.style.display = 'none';
+                }
+            }
+        }
+
+        // Emit typing events when user types
+        if (messageTextarea) {
+            let isCurrentlyTyping = false;
+
+            messageTextarea.addEventListener('input', function() {
+                if (!isCurrentlyTyping) {
+                    isCurrentlyTyping = true;
+                    socket.emit('typing', {
+                        session_id: sessionId,
+                        user_name: currentUserName,
+                        is_typing: true
+                    });
+                }
+
+                // Clear existing timeout
+                clearTimeout(typingTimeout);
+
+                // Set new timeout to stop typing indicator
+                typingTimeout = setTimeout(function() {
+                    isCurrentlyTyping = false;
+                    socket.emit('typing', {
+                        session_id: sessionId,
+                        user_name: currentUserName,
+                        is_typing: false
+                    });
+                }, 1000); // Stop showing typing after 1 second of inactivity
+            });
+        }
+
         // handle message form submission with AJAX
         if (messageForm) {
             messageForm.addEventListener('submit', function(e) {
@@ -261,6 +543,17 @@
                 
                 if (isSubmitting) return; // prevent double submission
                 isSubmitting = true;
+                
+                // Stop typing indicator immediately when sending
+                clearTimeout(typingTimeout);
+                if (isCurrentlyTyping) {
+                    isCurrentlyTyping = false;
+                    socket.emit('typing', {
+                        session_id: sessionId,
+                        user_name: currentUserName,
+                        is_typing: false
+                    });
+                }
                 
                 const formData = new FormData(messageForm);
                 const submitBtn = messageForm.querySelector('button[type="submit"]');
@@ -297,11 +590,177 @@
             initLastMessageId();
         }
 
+        // Listen for user presence events
+        socket.on('user_joined', function(data) {
+            console.log(`${data.user_name} joined the session`);
+            const presenceIndicator = document.getElementById(`presence-${data.user_id}`);
+            if (presenceIndicator) {
+                presenceIndicator.classList.remove('offline');
+                presenceIndicator.classList.add('online');
+            }
+        });
+
+        socket.on('user_left', function(data) {
+            console.log(`${data.user_name} left the session`);
+            const presenceIndicator = document.getElementById(`presence-${data.user_id}`);
+            if (presenceIndicator) {
+                presenceIndicator.classList.remove('online');
+                presenceIndicator.classList.add('offline');
+            }
+        });
+
         // Leave session room when user leaves page
         window.addEventListener('beforeunload', function() {
-            socket.emit('leave_session', { session_id: sessionId });
+            socket.emit('leave_session', { 
+                session_id: sessionId,
+                user_id: currentUserId,
+                user_name: currentUserName
+            });
         });
+
+        // Listen for reaction updates from WebSocket
+        socket.on('reaction_updated', function(data) {
+            const messageElement = document.querySelector(`.message-item[data-message-id="${data.message_id}"]`);
+            if (messageElement) {
+                updateMessageReactions(messageElement, data.reactions);
+            }
+        });
+
+        // Update message reactions display
+        function updateMessageReactions(messageElement, reactions) {
+            let reactionsContainer = messageElement.querySelector('.message-reactions');
+            
+            if (reactions.length === 0) {
+                if (reactionsContainer) {
+                    reactionsContainer.remove();
+                }
+                return;
+            }
+            
+            if (!reactionsContainer) {
+                reactionsContainer = document.createElement('div');
+                reactionsContainer.className = 'message-reactions';
+                const messageText = messageElement.querySelector('.message-text');
+                messageText.parentNode.insertBefore(reactionsContainer, messageText.nextSibling);
+            }
+            
+            const messageId = messageElement.dataset.messageId;
+            reactionsContainer.innerHTML = reactions.map(r => {
+                const isUserReaction = currentUserId && r.user_ids.includes(currentUserId);
+                return `<span class="reaction-badge ${isUserReaction ? 'user-reacted' : ''}" 
+                              data-emoji="${r.emoji}" 
+                              onclick="toggleReaction(${messageId}, '${r.emoji}')"
+                              title="${r.count} reaction${r.count > 1 ? 's' : ''}">
+                            ${r.emoji} ${r.count}
+                        </span>`;
+            }).join('');
+        }
     })();
+
+    // Global functions for reactions and replies
+    let replyToMessageId = null;
+    const commonEmojis = ['👍', '❤️', '😂', '🎉', '😕', '🔥', '👏', '✅'];
+
+    function showReactionPicker(messageId) {
+        // Close any existing picker
+        const existingPicker = document.querySelector('.reaction-picker');
+        if (existingPicker) {
+            existingPicker.remove();
+        }
+
+        const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+        const picker = document.createElement('div');
+        picker.className = 'reaction-picker';
+        picker.innerHTML = commonEmojis.map(emoji => 
+            `<span class="emoji-option" onclick="toggleReaction(${messageId}, '${emoji}'); this.parentElement.remove();">${emoji}</span>`
+        ).join('');
+        
+        messageElement.appendChild(picker);
+        
+        // Close picker when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', function closePickerHandler(e) {
+                if (!picker.contains(e.target) && !e.target.classList.contains('reaction-picker-btn')) {
+                    picker.remove();
+                    document.removeEventListener('click', closePickerHandler);
+                }
+            });
+        }, 10);
+    }
+
+    function toggleReaction(messageId, emoji) {
+        fetch(`/message/${messageId}/react`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ emoji: emoji, action: 'toggle' })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('Failed to toggle reaction:', data.error);
+            }
+            // Reaction update will come through WebSocket
+        })
+        .catch(error => console.error('Error toggling reaction:', error));
+    }
+
+    function showReplyForm(messageId, authorName, messageText) {
+        const truncatedText = messageText.length > 50 ? messageText.substring(0, 50) + '...' : messageText;
+        
+        // Update form to show reply context
+        const messageForm = document.getElementById('messageForm');
+        const messageTextarea = document.getElementById('messageTextarea');
+        
+        // Add or update reply indicator
+        let replyIndicator = document.querySelector('.reply-indicator');
+        if (!replyIndicator) {
+            replyIndicator = document.createElement('div');
+            replyIndicator.className = 'reply-indicator';
+            messageForm.insertBefore(replyIndicator, messageTextarea);
+        }
+        
+        replyIndicator.innerHTML = `
+            <div class="reply-context">
+                <i class="fas fa-reply"></i>
+                <span>Replying to ${authorName}: "${truncatedText}"</span>
+                <button type="button" class="cancel-reply-btn" onclick="cancelReply()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // Store the parent message ID
+        replyToMessageId = messageId;
+        
+        // Add hidden input for parent_message_id
+        let parentInput = messageForm.querySelector('input[name="parent_message_id"]');
+        if (!parentInput) {
+            parentInput = document.createElement('input');
+            parentInput.type = 'hidden';
+            parentInput.name = 'parent_message_id';
+            messageForm.appendChild(parentInput);
+        }
+        parentInput.value = messageId;
+        
+        // Focus textarea
+        messageTextarea.focus();
+    }
+
+    function cancelReply() {
+        const replyIndicator = document.querySelector('.reply-indicator');
+        if (replyIndicator) {
+            replyIndicator.remove();
+        }
+        
+        const parentInput = document.querySelector('input[name="parent_message_id"]');
+        if (parentInput) {
+            parentInput.remove();
+        }
+        
+        replyToMessageId = null;
+    }
     </script>
 
     <div class="file-upload-section">
@@ -647,33 +1106,9 @@
                         isUploading = false;
                         
                         if (data.success && data.file) {
-                            // add file message to chat
-                            const messagesContainer = document.querySelector('.messages-container');
-                            if (messagesContainer) {
-                                const emptyState = messagesContainer.querySelector('.empty-state');
-                                if (emptyState) {
-                                    emptyState.remove();
-                                }
-                                
-                                // create file message element
-                                const fileMsg = document.createElement('div');
-                                fileMsg.className = 'message-bubble own-message';
-                                fileMsg.innerHTML = `
-                                    <div class="message-header">
-                                        <strong class="sender-name">${escapeHtml(data.file.full_name)}</strong>
-                                        <span class="username-badge">@${escapeHtml(data.file.username)}</span>
-                                        <span class="message-time">Just now</span>
-                                    </div>
-                                    <div class="message-text">
-                                        <i class="fas fa-file"></i> Uploaded file: <strong>${escapeHtml(data.file.original_filename)}</strong>
-                                        <br><small>${formatFileSize(data.file.file_size)}</small>
-                                    </div>
-                                `;
-                                messagesContainer.appendChild(fileMsg);
-                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                            }
-                            
-                            alert('File uploaded to chat successfully!');
+                            // File will appear via WebSocket (chat_file event)
+                            // Just show success feedback
+                            console.log('File uploaded successfully:', data.file.original_filename);
                         } else {
                             alert(data.error || 'Upload failed');
                         }
@@ -761,6 +1196,21 @@
     }
 
     // Preview modal functionality
+    function openFullPreview(fileId) {
+        // Simple wrapper to open preview modal for images
+        // Fetches file info and delegates to openPreviewModal
+        fetch(`/file/${fileId}/info`)
+            .then(response => response.json())
+            .then(data => {
+                openPreviewModal(fileId, data.file_type, data.original_filename, data.user_id);
+            })
+            .catch(error => {
+                console.error('Error loading file info:', error);
+                // Fallback: open in new tab
+                window.open(`/file/${fileId}/preview`, '_blank');
+            });
+    }
+
     function openPreviewModal(fileId, fileType, filename, userId = null) {
         const modal = document.getElementById('previewModal');
         const modalContent = document.getElementById('previewContent');

@@ -15,18 +15,43 @@ A collaborative study session management web application built for **HackDécouv
 - **RSVP Management**: Accept/decline invitations and manage attendees
 - **Access Control**: Only participants can view session details
 
-### 💬 Collaboration Tools
-- **Real-time Chat**: Live messaging with 3-second auto-refresh
-- **File Sharing**: Upload and share study materials (images, PDFs, documents)
-- **File Preview**: Full-screen preview for images and PDFs with action buttons
-- **Quick Upload**: Upload files directly from chat
-- **Notes System**: Personal notes for each session
+### 💬 Real-Time Collaboration
+- **WebSocket Communication**: Instant message delivery with Socket.IO
+- **Live Chat**: Real-time messaging with typing indicators
+- **Message Reactions**: React to messages with 8 emoji options (👍❤️😂🎉😕🔥👏✅)
+- **Message Threading**: Reply to specific messages to create threaded conversations
+- **Typing Indicators**: See "user is typing..." in real-time
+- **User Presence**: Live online/offline status with green/gray indicators
+- **Chat File Sharing**: Upload files directly in chat with instant preview
+- **File Preview Modal**: Full-screen image and PDF viewer with zoom/download
 
-### 🔔 Productivity Features
+### 📝 Collaborative Note-Taking
+- **Rich Text Editor**: TinyMCE WYSIWYG editor with full formatting
+- **Auto-Save**: Automatic saves every 30 seconds while editing
+- **Draft Recovery**: Restore unsaved drafts from localStorage
+- **Real-Time Viewers**: See who's currently viewing each note
+- **Version Tracking**: Updated timestamps on all note changes
+- **Public/Private Notes**: Control note visibility
+
+### 🔔 Notification System
+- **In-App Notifications**: Bell icon in navbar with unread count badge
+- **Real-Time Delivery**: Instant notifications via WebSocket
+- **Notification Types**: Invitations, reminders, replies, mentions
+- **Mark as Read**: Individual or bulk mark all read
+- **Notification Dropdown**: Quick access panel with notification history
+
+### 📁 File Management
+- **Study Materials Upload**: Share files with session participants
+- **Multiple File Types**: Images, PDFs, Word, Excel, PowerPoint
+- **File Preview System**: Click to preview images and PDFs in modal
+- **Download & Delete**: Quick actions on all files
+- **File Context**: Separate chat files from study materials
+
+### ⏰ Productivity Features
 - **Automatic Reminders**: Email notifications 24 hours before sessions
 - **Countdown Timer**: See how much time until your session
 - **Dashboard**: View all your upcoming sessions at a glance
-- **Search & Filter**: Find sessions easily (coming soon)
+- **Session Invitations**: Invite specific users or accept join requests
 
 ### 🎨 Modern Design
 - **Purple Gradient Theme**: Beautiful color scheme throughout
@@ -68,6 +93,7 @@ Visit `http://127.0.0.1:5000` and create your account!
 
 ### Backend
 - **[Flask 3.0](https://flask.palletsprojects.com/)** - Web framework
+- **[Flask-SocketIO 5.3.6](https://flask-socketio.readthedocs.io/)** - WebSocket support for real-time features
 - **[SQLite3](https://www.sqlite.org/)** - Database
 - **[Werkzeug](https://werkzeug.palletsprojects.com/)** - Security (password hashing)
 - **[APScheduler](https://apscheduler.readthedocs.io/)** - Automated reminders
@@ -76,6 +102,8 @@ Visit `http://127.0.0.1:5000` and create your account!
 - **HTML5** - Semantic markup
 - **CSS3** - Modern styling with gradients and animations
 - **JavaScript (ES6+)** - Real-time updates and interactivity
+- **[Socket.IO 4.5.4](https://socket.io/)** - WebSocket client for real-time communication
+- **[TinyMCE 6](https://www.tiny.cloud/)** - Rich text editor for notes
 - **[Font Awesome 6.5](https://fontawesome.com/)** - Icon library
 - **[Google Fonts (Inter)](https://fonts.google.com/)** - Typography
 
@@ -163,13 +191,25 @@ HackDecouverteStudyApp/
 - id, session_id, user_id, status (pending/accepted/declined)
 
 **Messages Table**:
-- id, session_id, user_id, content, timestamp
+- id, session_id, user_id, content, timestamp, parent_message_id (for threading)
+
+**Message Reactions Table**:
+- id, message_id, user_id, reaction (emoji), created_at
 
 **Files Table**:
-- id, session_id, filename, filepath, upload_date, user_id, file_context
+- id, session_id, filename, filepath, upload_date, user_id, file_context (chat/study)
 
 **Notes Table**:
-- id, user_id, session_id, content, last_updated
+- id, user_id, title, description, content, subject, is_public, created_at, updated_at
+
+**Note Files Table**:
+- id, note_id, user_id, filename, original_filename, file_size, file_type, uploaded_at
+
+**Note Comments Table**:
+- id, note_id, user_id, comment, created_at
+
+**Notifications Table**:
+- id, user_id, type, title, message, link, is_read, created_at
 
 ## 🤝 Contributing
 
@@ -182,20 +222,21 @@ We welcome contributions! Please see **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
 
 ## 🐛 Known Issues
 
-- Chat uses polling (3s) instead of WebSockets (planned upgrade)
 - File storage is local (consider cloud storage for production)
-- No mobile app (PWA coming soon)
+- TinyMCE uses free tier (no API key - has branding footer)
+- No mobile-responsive design yet (coming soon)
 
 ## 🔮 Future Features
 
 See **[DEVELOPMENT.md](DEVELOPMENT.md)** for the complete roadmap, including:
-- Video/audio call integration
+- Session recording/transcription with Whisper API
+- Study analytics dashboard with Chart.js
 - Calendar sync (Google Calendar, Outlook)
-- Advanced file management with search
-- Progress tracking and analytics
-- Study groups/communities
-- AI study assistant
-- Mobile app (PWA)
+- Global search with SQLite FTS5
+- Flashcard system with spaced repetition
+- User profiles with avatars and preferences
+- Mobile-responsive PWA
+- Video/audio call integration
 - And much more!
 
 ## 📜 License
@@ -218,14 +259,15 @@ Stryker Pinchin, Rafael Ethan Olliver
 ## Third-Party Libraries & Frameworks
 
 #### Backend
-- **[Flask](https://flask.palletsprojects.com/)** Simple Web Framework
-  
-- **[Werkzeug](https://werkzeug.palletsprojects.com/)** Security functions & some more minor things
-
-- **[Jinja2](https://jinja.palletsprojects.com/)** Templates (included with Flask)
+- **[Flask](https://flask.palletsprojects.com/)** - Simple Web Framework
+- **[Flask-SocketIO](https://flask-socketio.readthedocs.io/)** - WebSocket support
+- **[Werkzeug](https://werkzeug.palletsprojects.com/)** - Security functions & utilities
+- **[Jinja2](https://jinja.palletsprojects.com/)** - Templates (included with Flask)
 
 #### Frontend
-- **[Font Awesome](https://fontawesome.com/)** Online Icon Database
+- **[Font Awesome](https://fontawesome.com/)** - Online Icon Database
+- **[Socket.IO](https://socket.io/)** - WebSocket client library
+- **[TinyMCE](https://www.tiny.cloud/)** - Rich text editor
 
 #### Database
 - **SQLite3** - Embedded database (included with Python)

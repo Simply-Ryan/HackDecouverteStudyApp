@@ -50,6 +50,54 @@
     </form>
 </div>
 
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+tinymce.init({
+    selector: '#content',
+    height: 500,
+    menubar: true,
+    plugins: [
+        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+        'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+    ],
+    toolbar: 'undo redo | blocks | ' +
+        'bold italic forecolor | alignleft aligncenter ' +
+        'alignright alignjustify | bullist numlist outdent indent | ' +
+        'removeformat | help',
+    content_style: 'body { font-family:Inter,sans-serif; font-size:14px }',
+    auto_focus: 'content',
+    branding: false,
+    promotion: false,
+    setup: function(editor) {
+        // Auto-save every 30 seconds
+        setInterval(function() {
+            if (editor.isDirty()) {
+                const content = editor.getContent();
+                const noteId = {{ note.id }};
+                // Save draft
+                fetch('/notes/{{ note.id }}/autosave', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        content: content,
+                        title: document.getElementById('title').value
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Auto-saved:', data);
+                    editor.setDirty(false);
+                })
+                .catch(error => console.error('Auto-save failed:', error));
+            }
+        }, 30000);
+    }
+});
+</script>
+
 <style>
 .form-container {
     max-width: 800px;

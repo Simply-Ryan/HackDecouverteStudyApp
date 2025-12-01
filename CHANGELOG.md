@@ -8,10 +8,204 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
+- Session recording/transcription with Whisper API
+- Study analytics dashboard with Chart.js visualizations
+- Google Calendar and Outlook integration
+- Mobile-responsive design with PWA support
+- Global search with SQLite FTS5
+- Flashcard system with spaced repetition (SM-2)
+- User profiles with avatars and preferences
+- Email notifications system
 - Video/audio call integration
-- Calendar sync (Google Calendar, Outlook)
-- Mobile app (PWA)
-- AI study assistant
+- Admin dashboard
+
+---
+
+## [2.0.0] - 2025-11-30
+
+### 🎉 Major Release: Real-Time Collaboration Suite
+
+This release represents a significant overhaul of the platform with three major feature additions that transform StudyFlow into a comprehensive real-time collaboration platform.
+
+### Added
+- **🔔 Notification System**: Full in-app notification system with real-time delivery
+  - Bell icon in navbar with unread count badge (animated red badge)
+  - Notification dropdown panel with notification list
+  - Notification types: invitation, reminder, reply, mention
+  - Personal WebSocket rooms (`user_{id}`) for targeted notification delivery
+  - Mark as read functionality (individual and bulk)
+  - Auto-fetch unread count on page load
+  - Real-time notification arrival without page refresh
+  - Notifications database table with type, title, message, link, is_read
+  - Backend routes: `/notifications`, `/notifications/unread-count`, `/notifications/<id>/read`, `/notifications/mark-all-read`
+  - Notifications created automatically for session invitations
+  - Styled notification items with type-specific icons and colors
+
+- **🖼️ Enhanced File Preview System**: Full-screen modal preview for images and PDFs
+  - `openFullPreview()` function for seamless preview experience
+  - `/file/<id>/info` endpoint for file metadata retrieval
+  - Modal overlay with full-screen preview
+  - Iframe support for PDF viewing
+  - Click-outside-to-close functionality
+  - Download and delete actions in preview modal
+  - Proper permission checks (creator or uploader can delete)
+  - Responsive design for modal
+
+- **📝 Collaborative Note-Taking**: Rich text editing with real-time collaboration
+  - **TinyMCE Rich Text Editor Integration**
+    - Full WYSIWYG editing with formatting toolbar
+    - Support for: bold, italic, colors, alignment, lists, tables, links, images
+    - Code view and fullscreen mode
+    - Word count and character count
+    - Custom content styling matching app theme
+  - **Auto-Save Functionality**
+    - Auto-save every 30 seconds while editing
+    - `/notes/<id>/autosave` endpoint for background saves
+    - Draft restoration from localStorage on create page
+    - Visual feedback on auto-save completion
+    - Dirty flag tracking to prevent unnecessary saves
+  - **Real-Time Viewer Tracking**
+    - Live "X viewing" indicator on notes
+    - WebSocket-based presence system for notes
+    - Note rooms (`note_{id}`) for viewer coordination
+    - Viewer list with usernames shown on hover
+    - Automatic viewer cleanup on disconnect
+    - Join/leave room handlers for note viewing
+    - Real-time viewer count updates broadcast to all participants
+
+### Changed
+- Navbar now includes notification bell icon between "Notes" and "Create Session"
+- Note viewing experience enhanced with real-time collaboration features
+- File preview system upgraded from simple view to full modal experience
+- Create and edit note forms now use rich text editor instead of plain textarea
+
+### Technical
+- **Notifications Infrastructure**
+  - Created `notifications` table: id, user_id, type, title, message, link, is_read, created_at
+  - Migration script: `migrate_notifications.py`
+  - `create_notification()` helper function for easy notification creation
+  - WebSocket handlers: `join_user_room`, `leave_user_room`
+  - Real-time emit on `new_notification` event
+  - Frontend JavaScript for bell dropdown, badge updates, real-time listening
+
+- **File Preview Enhancements**
+  - New endpoint: `GET /file/<id>/info` returns JSON metadata
+  - JavaScript modal system with preview content injection
+  - CSS for full-screen modal with backdrop blur
+  - Action buttons (close, download, delete) in modal overlay
+
+- **Collaborative Notes**
+  - TinyMCE 6 CDN integration
+  - WebSocket note viewers tracking with in-memory store
+  - Note room system for real-time presence
+  - Auto-save endpoint with JSON request/response
+  - Disconnect handler cleanup for note viewers
+  - CSS styling for viewer indicator with gradient background
+  - localStorage draft system for unsaved work recovery
+
+### Dependencies
+- TinyMCE 6.x (CDN)
+- Socket.IO 4.5.4 (already in use, extended for notes and notifications)
+
+---
+
+## [1.7.0] - 2025-11-30
+
+### Added
+- **User Presence Indicators**: Real-time online/offline status for session participants
+- Green dot indicator for online users with pulsing animation
+- Gray dot for offline users
+- Automatic presence tracking when users join/leave sessions
+- Real-time presence updates via WebSocket
+
+### Changed
+- Enhanced join/leave WebSocket handlers to broadcast user presence
+- Updated participant list to show presence indicators
+- Improved visual feedback for active vs inactive participants
+
+### Technical
+- New WebSocket events: `user_joined` and `user_left` with user_id/user_name
+- Enhanced `join_session` and `leave_session` handlers to include user data
+- CSS animations for online presence indicator (pulsing green dot)
+- Automatic presence cleanup on page unload
+
+---
+
+## [1.6.0] - 2025-11-30
+
+### Added
+- **File Sharing in Chat**: Upload files directly in chat messages (separate from study materials)
+- File preview thumbnails for images inline with messages
+- File type icons for PDFs, Word, Excel, PowerPoint documents
+- Quick file actions (View and Download) on each file message
+- Real-time file broadcast via WebSocket (`chat_file` event)
+- Merged timeline showing both messages and files chronologically
+
+### Changed
+- Messages and chat files now display in unified timeline
+- Updated file upload to support dual context (chat vs study materials)
+- Enhanced message display logic to differentiate between text and file messages
+- File messages show with distinctive styling and preview capabilities
+
+### Technical
+- Added `type` field to message objects ('message' or 'file')
+- New WebSocket event: `chat_file` for broadcasting chat file uploads
+- Updated `createMessageElement()` to handle both message types
+- Enhanced file message rendering with preview thumbnails
+- CSS styles for file messages with image previews and file type icons
+
+---
+
+## [1.5.0] - 2025-11-30
+
+### Added
+- **Typing Indicators**: Real-time "user is typing..." display in chat
+- Animated typing dots with smooth transitions
+- Multi-user typing support (shows "3 people are typing")
+- Smart typing detection (stops after 1 second of inactivity)
+- Automatic typing stop when message is sent
+
+### Changed
+- Enhanced WebSocket communication with typing events
+- Improved chat UX with real-time presence feedback
+
+### Technical
+- New WebSocket handler: `@socketio.on('typing')` for broadcasting typing status
+- New WebSocket event: `user_typing` for receiving typing updates
+- JavaScript typing detection with debounce logic
+- CSS animations for typing indicator dots
+- Excludes sender from receiving their own typing events
+
+---
+
+## [1.4.0] - 2025-11-30
+
+### Added
+- **Message Reactions**: React to messages with emoji (👍 ❤️ 😂 🎉 😕 🔥 👏 ✅)
+- **Message Threading**: Reply to specific messages to create threaded conversations
+- Reaction picker UI with common emojis
+- Reply context indicator showing parent message
+- Real-time reaction updates via WebSocket
+- `message_reactions` database table with unique constraint
+- `parent_message_id` column in messages table for threading
+- Action buttons (reply and react) shown on message hover
+- Visual feedback for user's own reactions (purple gradient highlight)
+- Cancel reply functionality
+- Migration script (`migrate_reactions.py`) for existing databases
+
+### Changed
+- Updated message display to include reactions and reply references
+- Enhanced `post_message` route to support parent_message_id
+- Updated `get_messages` API to include reactions and parent info
+- Improved message UI with hover actions
+- Message data structure now includes reactions array and parent_info
+
+### Technical
+- New route: `POST /message/<message_id>/react` for adding/removing reactions
+- New WebSocket event: `reaction_updated` for broadcasting reaction changes
+- Enhanced `new_message` WebSocket event with parent info and reactions
+- CSS styles for reaction badges, reply references, and action buttons
+- JavaScript functions: `toggleReaction()`, `showReplyForm()`, `cancelReply()`
 
 ---
 

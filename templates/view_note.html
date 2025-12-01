@@ -12,6 +12,9 @@
             {% else %}
                 <span class="badge badge-private"><i class="fas fa-lock"></i> Private</span>
             {% endif %}
+            <div class="note-viewers" id="noteViewers">
+                <i class="fas fa-eye"></i> <span id="viewerCount">0</span> viewing
+            </div>
         </div>
         
         <div class="note-meta-row">
@@ -146,11 +149,36 @@
     justify-content: space-between;
     align-items: start;
     margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .note-title-row h1 {
     margin: 0;
     color: #333;
+}
+
+.note-viewers {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    color: #667eea;
+    font-weight: 600;
+    cursor: help;
+    transition: all 0.3s;
+}
+
+.note-viewers:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+    transform: scale(1.05);
+}
+
+.note-viewers i {
+    font-size: 1rem;
 }
 
 .note-meta-row {
@@ -363,6 +391,7 @@
 }
 </style>
 
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
 // handle file upload
 document.getElementById('fileInput')?.addEventListener('change', function() {
@@ -370,6 +399,42 @@ document.getElementById('fileInput')?.addEventListener('change', function() {
         document.getElementById('fileUploadForm').submit();
     }
 });
+
+// Real-time note viewers tracking
+(function() {
+    const noteId = {{ note.id }};
+    const userId = {{ session.get('user_id', 'null') }};
+    const username = '{{ session.get("username", "Anonymous") }}';
+    
+    if (!userId) return;
+    
+    const socket = io();
+    
+    // Join note room when viewing
+    socket.emit('join_note_room', {
+        note_id: noteId,
+        user_id: userId,
+        username: username
+    });
+    
+    // Update viewer count when someone joins/leaves
+    socket.on('note_viewers_update', function(data) {
+        const viewerCount = data.viewers.length;
+        document.getElementById('viewerCount').textContent = viewerCount;
+        
+        // Show tooltip with viewer names (optional)
+        const viewerNames = data.viewers.map(v => v.username).join(', ');
+        document.getElementById('noteViewers').title = `Viewing now: ${viewerNames}`;
+    });
+    
+    // Leave room when navigating away
+    window.addEventListener('beforeunload', function() {
+        socket.emit('leave_note_room', {
+            note_id: noteId,
+            user_id: userId
+        });
+    });
+})();
 </script>
 
 {% endblock %}

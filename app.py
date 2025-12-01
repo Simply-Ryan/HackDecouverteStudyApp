@@ -99,6 +99,28 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def create_notification(user_id, notif_type, title, message, link=None):
+    """Helper function to create a notification for a user"""
+    conn = get_db()
+    cursor = conn.execute(
+        'INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)',
+        (user_id, notif_type, title, message, link)
+    )
+    notif_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    # Emit real-time notification via WebSocket
+    socketio.emit('new_notification', {
+        'id': notif_id,
+        'type': notif_type,
+        'title': title,
+        'message': message,
+        'link': link
+    }, room=f'user_{user_id}')
+    
+    return notif_id
+
 @app.route('/')
 def index():
     conn = get_db()
@@ -287,13 +309,83 @@ def detail(session_id):
                 flash('RSVP submitted successfully!')
         return redirect(url_for('detail', session_id=session_id))
     
-    messages = conn.execute('''
+    messages_raw = conn.execute('''
         SELECT m.*, u.full_name, u.username
         FROM messages m
         JOIN users u ON m.user_id = u.id
         WHERE m.session_id = ?
         ORDER BY m.created_at ASC
     ''', (session_id,)).fetchall()
+    
+    # Add reactions and parent info to messages
+    messages = []
+    for msg in messages_raw:
+        reactions = conn.execute('''
+            SELECT emoji, COUNT(*) as count, GROUP_CONCAT(user_id) as user_ids
+            FROM message_reactions
+            WHERE message_id = ?
+            GROUP BY emoji
+        ''', (msg['id'],)).fetchall()
+        
+        # Get parent message info if this is a reply
+        parent_info = None
+        if msg['parent_message_id']:
+            parent = conn.execute('''
+                SELECT m.message_text, u.full_name
+                FROM messages m
+                JOIN users u ON m.user_id = u.id
+                WHERE m.id = ?
+            ''', (msg['parent_message_id'],)).fetchone()
+            if parent:
+                parent_info = {
+                    'id': msg['parent_message_id'],
+                    'text': parent['message_text'],
+                    'author': parent['full_name']
+                }
+        
+        messages.append({
+            'id': msg['id'],
+            'type': 'message',
+            'full_name': msg['full_name'],
+            'username': msg['username'],
+            'message_text': msg['message_text'],
+            'created_at': msg['created_at'],
+            'user_id': msg['user_id'],
+            'parent_message_id': msg['parent_message_id'],
+            'parent_info': parent_info,
+            'reactions': [{
+                'emoji': r['emoji'],
+                'count': r['count'],
+                'user_ids': [int(uid) for uid in r['user_ids'].split(',')]
+            } for r in reactions]
+        })
+    
+    # Fetch chat files and add them to messages timeline
+    chat_files = conn.execute('''
+        SELECT f.*, u.full_name, u.username
+        FROM files f
+        JOIN users u ON f.user_id = u.id
+        WHERE f.session_id = ? AND f.file_context = 'chat'
+        ORDER BY f.uploaded_at ASC
+    ''', (session_id,)).fetchall()
+    
+    for file in chat_files:
+        messages.append({
+            'id': file['id'],
+            'type': 'file',
+            'full_name': file['full_name'],
+            'username': file['username'],
+            'created_at': file['uploaded_at'],
+            'user_id': file['user_id'],
+            'file_id': file['id'],
+            'filename': file['filename'],
+            'original_filename': file['original_filename'],
+            'file_size': file['file_size'],
+            'file_type': file['file_type']
+        })
+    
+    # Sort all messages and files by timestamp
+    messages = sorted(messages, key=lambda x: x['created_at'])
     
     # fetch only study material files (not chat files)
     files = conn.execute('''
@@ -344,12 +436,13 @@ def detail(session_id):
 @login_required
 def post_message(session_id):
     message_text = request.form.get('message_text', '')
+    parent_message_id = request.form.get('parent_message_id', None)
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     
     if message_text.strip():
         conn = get_db()
-        conn.execute('INSERT INTO messages (session_id, user_id, message_text) VALUES (?, ?, ?)',
-                     (session_id, session['user_id'], message_text))
+        conn.execute('INSERT INTO messages (session_id, user_id, message_text, parent_message_id) VALUES (?, ?, ?, ?)',
+                     (session_id, session['user_id'], message_text, parent_message_id))
         conn.commit()
         
         # get the newly created message for AJAX response
@@ -361,6 +454,23 @@ def post_message(session_id):
             ORDER BY m.created_at DESC
             LIMIT 1
         ''', (session_id, session['user_id'])).fetchone()
+        
+        # Get parent message info if this is a reply
+        parent_info = None
+        if parent_message_id:
+            parent = conn.execute('''
+                SELECT m.message_text, u.full_name
+                FROM messages m
+                JOIN users u ON m.user_id = u.id
+                WHERE m.id = ?
+            ''', (parent_message_id,)).fetchone()
+            if parent:
+                parent_info = {
+                    'id': parent_message_id,
+                    'text': parent['message_text'],
+                    'author': parent['full_name']
+                }
+        
         conn.close()
         
         # Broadcast message to all users in the session room via WebSocket
@@ -370,7 +480,10 @@ def post_message(session_id):
             'username': new_message['username'],
             'message_text': new_message['message_text'],
             'created_at': new_message['created_at'],
-            'user_id': new_message['user_id']
+            'user_id': new_message['user_id'],
+            'parent_message_id': new_message['parent_message_id'],
+            'parent_info': parent_info,
+            'reactions': []
         }
         socketio.emit('new_message', message_data, room=f'session_{session_id}')
         
@@ -400,18 +513,102 @@ def get_messages(session_id):
         WHERE m.session_id = ? AND m.id > ?
         ORDER BY m.created_at ASC
     ''', (session_id, last_message_id)).fetchall()
-    conn.close()
     
-    return jsonify({
-        'messages': [{
+    # Fetch reactions for each message
+    message_list = []
+    for msg in messages:
+        reactions = conn.execute('''
+            SELECT emoji, COUNT(*) as count, GROUP_CONCAT(user_id) as user_ids
+            FROM message_reactions
+            WHERE message_id = ?
+            GROUP BY emoji
+        ''', (msg['id'],)).fetchall()
+        
+        message_list.append({
             'id': msg['id'],
             'full_name': msg['full_name'],
             'username': msg['username'],
             'message_text': msg['message_text'],
             'created_at': msg['created_at'],
-            'user_id': msg['user_id']
-        } for msg in messages]
-    })
+            'user_id': msg['user_id'],
+            'parent_message_id': msg['parent_message_id'],
+            'reactions': [{
+                'emoji': r['emoji'],
+                'count': r['count'],
+                'user_ids': [int(uid) for uid in r['user_ids'].split(',')]
+            } for r in reactions]
+        })
+    
+    conn.close()
+    
+    return jsonify({'messages': message_list})
+
+@app.route('/message/<int:message_id>/react', methods=['POST'])
+@login_required
+def react_to_message(message_id):
+    """Add or remove a reaction to a message"""
+    data = request.get_json()
+    emoji = data.get('emoji', '').strip()
+    action = data.get('action', 'toggle')  # 'add', 'remove', or 'toggle'
+    
+    if not emoji:
+        return jsonify({'success': False, 'error': 'Emoji is required'}), 400
+    
+    conn = get_db()
+    
+    # Get the message to find its session
+    message = conn.execute('SELECT session_id FROM messages WHERE id = ?', (message_id,)).fetchone()
+    if not message:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Message not found'}), 404
+    
+    session_id = message['session_id']
+    
+    # Check if user already reacted with this emoji
+    existing = conn.execute('''
+        SELECT id FROM message_reactions 
+        WHERE message_id = ? AND user_id = ? AND emoji = ?
+    ''', (message_id, session['user_id'], emoji)).fetchone()
+    
+    if action == 'toggle':
+        action = 'remove' if existing else 'add'
+    
+    if action == 'add' and not existing:
+        conn.execute('''
+            INSERT INTO message_reactions (message_id, user_id, emoji) 
+            VALUES (?, ?, ?)
+        ''', (message_id, session['user_id'], emoji))
+        conn.commit()
+    elif action == 'remove' and existing:
+        conn.execute('''
+            DELETE FROM message_reactions 
+            WHERE message_id = ? AND user_id = ? AND emoji = ?
+        ''', (message_id, session['user_id'], emoji))
+        conn.commit()
+    
+    # Get updated reaction counts for this message
+    reactions = conn.execute('''
+        SELECT emoji, COUNT(*) as count, GROUP_CONCAT(user_id) as user_ids
+        FROM message_reactions
+        WHERE message_id = ?
+        GROUP BY emoji
+    ''', (message_id,)).fetchall()
+    
+    conn.close()
+    
+    reaction_data = {
+        'message_id': message_id,
+        'reactions': [{
+            'emoji': r['emoji'],
+            'count': r['count'],
+            'user_ids': [int(uid) for uid in r['user_ids'].split(',')]
+        } for r in reactions]
+    }
+    
+    # Broadcast reaction update to all users in the session
+    socketio.emit('reaction_updated', reaction_data, room=f'session_{session_id}')
+    
+    return jsonify({'success': True, 'data': reaction_data})
 
 @app.route('/session/<int:session_id>/invite', methods=['POST'])
 @login_required
@@ -431,6 +628,19 @@ def invite_user(session_id):
                                VALUES (?, ?, ?)''',
                            (session_id, session['user_id'], invitee_id))
                 conn.commit()
+                
+                # Get session details for notification
+                session_info = conn.execute('SELECT title FROM sessions WHERE id = ?', (session_id,)).fetchone()
+                
+                # Create notification for invitee
+                create_notification(
+                    user_id=int(invitee_id),
+                    notif_type='invitation',
+                    title='New Session Invitation',
+                    message=f'{session["full_name"]} invited you to "{session_info["title"]}"',
+                    link=f'/session/{session_id}'
+                )
+                
                 flash('Invitation sent successfully!')
             except sqlite3.IntegrityError:
                 flash('User has already been invited!')
@@ -519,6 +729,69 @@ def dismiss_reminder(reminder_id):
     conn.close()
     return redirect(url_for('index'))
 
+@app.route('/notifications')
+@login_required
+def get_notifications():
+    """API endpoint to fetch user's notifications"""
+    conn = get_db()
+    notifications = conn.execute('''
+        SELECT * FROM notifications 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC 
+        LIMIT 50
+    ''', (session['user_id'],)).fetchall()
+    conn.close()
+    
+    return jsonify({
+        'notifications': [{
+            'id': n['id'],
+            'type': n['type'],
+            'title': n['title'],
+            'message': n['message'],
+            'link': n['link'],
+            'is_read': n['is_read'],
+            'created_at': n['created_at']
+        } for n in notifications]
+    })
+
+@app.route('/notifications/unread-count')
+@login_required
+def unread_count():
+    """Get count of unread notifications"""
+    conn = get_db()
+    count = conn.execute(
+        'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
+        (session['user_id'],)
+    ).fetchone()['count']
+    conn.close()
+    return jsonify({'count': count})
+
+@app.route('/notifications/<int:notif_id>/read', methods=['POST'])
+@login_required
+def mark_notification_read(notif_id):
+    """Mark a notification as read"""
+    conn = get_db()
+    conn.execute(
+        'UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?',
+        (notif_id, session['user_id'])
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/notifications/mark-all-read', methods=['POST'])
+@login_required
+def mark_all_read():
+    """Mark all notifications as read"""
+    conn = get_db()
+    conn.execute(
+        'UPDATE notifications SET is_read = 1 WHERE user_id = ?',
+        (session['user_id'],)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
 @app.route('/session/<int:session_id>/upload', methods=['POST'])
 @login_required
 def upload_file(session_id):
@@ -587,6 +860,7 @@ def upload_file(session_id):
         # Broadcast new file to all users in the session via WebSocket
         file_data = {
             'id': file_id,
+            'file_id': file_id,
             'original_filename': original_filename,
             'file_size': file_size,
             'file_type': file_type,
@@ -594,9 +868,16 @@ def upload_file(session_id):
             'full_name': user_info['full_name'],
             'username': user_info['username'],
             'user_id': session['user_id'],
-            'uploaded_at': datetime.now().isoformat()
+            'uploaded_at': datetime.now().isoformat(),
+            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'type': 'file'
         }
-        socketio.emit('new_file', file_data, room=f'session_{session_id}')
+        
+        # Emit different events based on context
+        if file_context == 'chat':
+            socketio.emit('chat_file', file_data, room=f'session_{session_id}')
+        else:
+            socketio.emit('new_file', file_data, room=f'session_{session_id}')
         
         if is_ajax:
             return jsonify({
@@ -665,6 +946,25 @@ def download_file(file_id):
     
     return send_from_directory(app.config['UPLOAD_FOLDER'], file_record['filename'], 
                               as_attachment=True, download_name=file_record['original_filename'])
+
+@app.route('/file/<int:file_id>/info')
+@login_required
+def file_info(file_id):
+    """Get file metadata for preview modal"""
+    conn = get_db()
+    file_record = conn.execute('SELECT id, original_filename, file_type, user_id, session_id FROM files WHERE id = ?', (file_id,)).fetchone()
+    conn.close()
+    
+    if not file_record:
+        return jsonify({'error': 'File not found'}), 404
+    
+    return jsonify({
+        'id': file_record['id'],
+        'original_filename': file_record['original_filename'],
+        'file_type': file_record['file_type'],
+        'user_id': file_record['user_id'],
+        'session_id': file_record['session_id']
+    })
 
 @app.route('/file/<int:file_id>/preview')
 @login_required
@@ -983,6 +1283,31 @@ def edit_note(note_id):
     conn.close()
     return render_template('edit_note.html', note=note)
 
+@app.route('/notes/<int:note_id>/autosave', methods=['POST'])
+@login_required
+def autosave_note(note_id):
+    """Auto-save note content during editing"""
+    conn = get_db()
+    note = conn.execute('SELECT user_id FROM notes WHERE id = ?', (note_id,)).fetchone()
+    
+    if not note or note['user_id'] != session['user_id']:
+        conn.close()
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    data = request.json
+    content = data.get('content', '')
+    title = data.get('title', '')
+    
+    conn.execute('''
+        UPDATE notes 
+        SET content = ?, title = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (content, title, note_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'timestamp': datetime.now().isoformat()})
+
 @app.route('/notes/<int:note_id>/delete', methods=['POST'])
 @login_required
 def delete_note(note_id):
@@ -1159,19 +1484,39 @@ atexit.register(lambda: scheduler.shutdown())
 def handle_join_session(data):
     """User joins a session room for real-time updates"""
     session_id = data.get('session_id')
+    user_id = data.get('user_id')
+    user_name = data.get('user_name')
+    
     if session_id:
         room = f'session_{session_id}'
         join_room(room)
-        print(f"User joined room: {room}")
+        print(f"User {user_name} (ID: {user_id}) joined room: {room}")
+        
+        # Broadcast user presence to others in the room
+        if user_id and user_name:
+            socketio.emit('user_joined', {
+                'user_id': user_id,
+                'user_name': user_name
+            }, room=room, include_self=False)
 
 @socketio.on('leave_session')
 def handle_leave_session(data):
     """User leaves a session room"""
     session_id = data.get('session_id')
+    user_id = data.get('user_id')
+    user_name = data.get('user_name')
+    
     if session_id:
         room = f'session_{session_id}'
         leave_room(room)
-        print(f"User left room: {room}")
+        print(f"User {user_name} (ID: {user_id}) left room: {room}")
+        
+        # Broadcast user departure to others in the room
+        if user_id:
+            socketio.emit('user_left', {
+                'user_id': user_id,
+                'user_name': user_name
+            }, room=room, include_self=False)
 
 @socketio.on('new_file_uploaded')
 def handle_file_upload(data):
@@ -1180,6 +1525,120 @@ def handle_file_upload(data):
     if session_id:
         room = f'session_{session_id}'
         socketio.emit('file_uploaded', data, room=room)
+
+@socketio.on('typing')
+def handle_typing(data):
+    """Broadcast typing indicator to all users in session except sender"""
+    session_id = data.get('session_id')
+    user_name = data.get('user_name')
+    is_typing = data.get('is_typing', True)
+    
+    if session_id and user_name:
+        room = f'session_{session_id}'
+        # Broadcast to room, sender will be excluded by client-side logic
+        socketio.emit('user_typing', {
+            'user_name': user_name,
+            'is_typing': is_typing
+        }, room=room, include_self=False)
+
+@socketio.on('join_user_room')
+def handle_join_user_room(data):
+    """User joins their personal notification room"""
+    user_id = data.get('user_id')
+    if user_id:
+        room = f'user_{user_id}'
+        join_room(room)
+        print(f"User {user_id} joined personal notification room")
+
+@socketio.on('leave_user_room')
+def handle_leave_user_room(data):
+    """User leaves their personal notification room"""
+    user_id = data.get('user_id')
+    if user_id:
+        room = f'user_{user_id}'
+        leave_room(room)
+        print(f"User {user_id} left personal notification room")
+
+# Track note viewers
+note_viewers = {}  # {note_id: [{user_id, username, sid}, ...]}
+
+@socketio.on('join_note_room')
+def handle_join_note_room(data):
+    """User joins a note room to view it"""
+    note_id = data.get('note_id')
+    user_id = data.get('user_id')
+    username = data.get('username', 'Anonymous')
+    
+    if note_id:
+        room = f'note_{note_id}'
+        join_room(room)
+        
+        # Add to viewers list
+        if note_id not in note_viewers:
+            note_viewers[note_id] = []
+        
+        # Remove existing entry for this user if any
+        note_viewers[note_id] = [v for v in note_viewers[note_id] if v['user_id'] != user_id]
+        
+        # Add current viewer
+        note_viewers[note_id].append({
+            'user_id': user_id,
+            'username': username,
+            'sid': request.sid
+        })
+        
+        # Broadcast updated viewer list
+        socketio.emit('note_viewers_update', {
+            'viewers': [{'username': v['username']} for v in note_viewers[note_id]]
+        }, room=room)
+        
+        print(f"User {username} joined note {note_id} room. Total viewers: {len(note_viewers[note_id])}")
+
+@socketio.on('leave_note_room')
+def handle_leave_note_room(data):
+    """User leaves a note room"""
+    note_id = data.get('note_id')
+    user_id = data.get('user_id')
+    
+    if note_id:
+        room = f'note_{note_id}'
+        leave_room(room)
+        
+        # Remove from viewers list
+        if note_id in note_viewers:
+            note_viewers[note_id] = [v for v in note_viewers[note_id] if v['user_id'] != user_id]
+            
+            # Broadcast updated viewer list
+            socketio.emit('note_viewers_update', {
+                'viewers': [{'username': v['username']} for v in note_viewers[note_id]]
+            }, room=room)
+            
+            # Clean up empty lists
+            if not note_viewers[note_id]:
+                del note_viewers[note_id]
+        
+        print(f"User {user_id} left note {note_id} room")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle user disconnect - clean up from all note rooms"""
+    sid = request.sid
+    
+    # Remove from all note viewer lists
+    for note_id in list(note_viewers.keys()):
+        original_count = len(note_viewers[note_id])
+        note_viewers[note_id] = [v for v in note_viewers[note_id] if v['sid'] != sid]
+        
+        if len(note_viewers[note_id]) < original_count:
+            # User was viewing this note, broadcast update
+            room = f'note_{note_id}'
+            socketio.emit('note_viewers_update', {
+                'viewers': [{'username': v['username']} for v in note_viewers[note_id]]
+            }, room=room)
+        
+        # Clean up empty lists
+        if not note_viewers[note_id]:
+            del note_viewers[note_id]
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
