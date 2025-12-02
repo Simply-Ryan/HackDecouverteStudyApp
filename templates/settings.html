@@ -25,6 +25,21 @@
                 
                 <div class="setting-item">
                     <label class="setting-label">
+                        <input type="checkbox" name="push_notifications" id="pushNotifications"
+                               {% if settings.push_notifications %}checked{% endif %}>
+                        <span class="setting-info">
+                            <strong>Browser Push Notifications</strong>
+                            <small>Get real-time notifications in your browser</small>
+                        </span>
+                    </label>
+                    <div id="pushStatus" class="notification-status"></div>
+                    <button type="button" id="testPushBtn" class="btn-test-push" style="display:none;">
+                        <i class="fas fa-paper-plane"></i> Test Push Notification
+                    </button>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">
                         <input type="checkbox" name="session_reminders" 
                                {% if settings.session_reminders %}checked{% endif %}>
                         <span class="setting-info">
@@ -43,6 +58,59 @@
                             <small>Notify when you receive new messages</small>
                         </span>
                     </label>
+                </div>
+                
+                <div class="setting-item notification-timing">
+                    <label class="setting-label-block">
+                        <strong><i class="fas fa-clock"></i> Reminder Timing</strong>
+                        <small>When to receive session reminders</small>
+                    </label>
+                    <div class="timing-options">
+                        <label class="timing-option">
+                            <input type="radio" name="reminder_timing" value="1" 
+                                   {% if not settings.reminder_timing or settings.reminder_timing == 1 %}checked{% endif %}>
+                            <span>1 hour before</span>
+                        </label>
+                        <label class="timing-option">
+                            <input type="radio" name="reminder_timing" value="6"
+                                   {% if settings.reminder_timing == 6 %}checked{% endif %}>
+                            <span>6 hours before</span>
+                        </label>
+                        <label class="timing-option">
+                            <input type="radio" name="reminder_timing" value="24"
+                                   {% if settings.reminder_timing == 24 %}checked{% endif %}>
+                            <span>24 hours before</span>
+                        </label>
+                        <label class="timing-option">
+                            <input type="radio" name="reminder_timing" value="48"
+                                   {% if settings.reminder_timing == 48 %}checked{% endif %}>
+                            <span>48 hours before</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label-block">
+                        <strong><i class="fas fa-volume-up"></i> Notification Sound</strong>
+                        <small>Play sound when receiving notifications</small>
+                    </label>
+                    <div class="sound-options">
+                        <label class="sound-option">
+                            <input type="radio" name="notification_sound" value="default"
+                                   {% if not settings.notification_sound or settings.notification_sound == 'default' %}checked{% endif %}>
+                            <span>Default</span>
+                        </label>
+                        <label class="sound-option">
+                            <input type="radio" name="notification_sound" value="gentle"
+                                   {% if settings.notification_sound == 'gentle' %}checked{% endif %}>
+                            <span>Gentle</span>
+                        </label>
+                        <label class="sound-option">
+                            <input type="radio" name="notification_sound" value="none"
+                                   {% if settings.notification_sound == 'none' %}checked{% endif %}>
+                            <span>Silent</span>
+                        </label>
+                    </div>
                 </div>
             </div>
             
@@ -246,6 +314,94 @@
     width: 20px;
 }
 
+.notification-status {
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    display: none;
+}
+
+.notification-status.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+    display: block;
+}
+
+.notification-status.warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+    display: block;
+}
+
+.notification-status.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    display: block;
+}
+
+.btn-test-push {
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+.btn-test-push:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.timing-options,
+.sound-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.timing-option,
+.sound-option {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.timing-option:hover,
+.sound-option:hover {
+    border-color: #667eea;
+    background: #f7fafc;
+}
+
+.timing-option input[type="radio"],
+.sound-option input[type="radio"] {
+    margin-right: 0.5rem;
+}
+
+.timing-option input[type="radio"]:checked + span,
+.sound-option input[type="radio"]:checked + span {
+    color: #667eea;
+    font-weight: 600;
+}
+
+.notification-timing {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+}
+
 .form-actions {
     display: flex;
     gap: 1rem;
@@ -281,4 +437,140 @@
     }
 }
 </style>
+
+<script>
+// Push Notification Management
+document.addEventListener('DOMContentLoaded', function() {
+    const pushCheckbox = document.getElementById('pushNotifications');
+    const pushStatus = document.getElementById('pushStatus');
+    const testPushBtn = document.getElementById('testPushBtn');
+    
+    if (!pushCheckbox) return;
+    
+    // Check if browser supports push notifications
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        pushStatus.textContent = '⚠️ Push notifications not supported in this browser';
+        pushStatus.className = 'notification-status warning';
+        pushCheckbox.disabled = true;
+        return;
+    }
+    
+    // Check current subscription status
+    navigator.serviceWorker.ready.then(registration => {
+        return registration.pushManager.getSubscription();
+    }).then(subscription => {
+        if (subscription) {
+            pushStatus.textContent = '✓ Push notifications are enabled';
+            pushStatus.className = 'notification-status success';
+            testPushBtn.style.display = 'block';
+        } else {
+            pushStatus.textContent = 'Push notifications are disabled';
+            pushStatus.className = 'notification-status warning';
+        }
+    });
+    
+    // Handle checkbox changes
+    pushCheckbox.addEventListener('change', async function() {
+        if (this.checked) {
+            // Request notification permission
+            const permission = await Notification.requestPermission();
+            
+            if (permission === 'granted') {
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+                    
+                    // Get VAPID public key
+                    const response = await fetch('/api/push/vapid-public-key');
+                    const data = await response.json();
+                    
+                    // Subscribe to push notifications
+                    const subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(data.publicKey || '')
+                    });
+                    
+                    // Send subscription to server
+                    await fetch('/api/push/subscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(subscription.toJSON())
+                    });
+                    
+                    pushStatus.textContent = '✓ Push notifications enabled successfully!';
+                    pushStatus.className = 'notification-status success';
+                    testPushBtn.style.display = 'block';
+                    
+                } catch (error) {
+                    console.error('Failed to subscribe:', error);
+                    pushStatus.textContent = '❌ Failed to enable push notifications';
+                    pushStatus.className = 'notification-status error';
+                    this.checked = false;
+                }
+            } else {
+                pushStatus.textContent = '❌ Notification permission denied';
+                pushStatus.className = 'notification-status error';
+                this.checked = false;
+            }
+        } else {
+            // Unsubscribe from push notifications
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.getSubscription();
+                
+                if (subscription) {
+                    await subscription.unsubscribe();
+                    
+                    // Notify server
+                    await fetch('/api/push/unsubscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                }
+                
+                pushStatus.textContent = 'Push notifications disabled';
+                pushStatus.className = 'notification-status warning';
+                testPushBtn.style.display = 'none';
+                
+            } catch (error) {
+                console.error('Failed to unsubscribe:', error);
+                pushStatus.textContent = '❌ Failed to disable push notifications';
+                pushStatus.className = 'notification-status error';
+            }
+        }
+    });
+    
+    // Test push notification
+    testPushBtn.addEventListener('click', function() {
+        if (Notification.permission === 'granted') {
+            new Notification('StudyFlow Test', {
+                body: 'Push notifications are working! 🎉',
+                icon: '/static/images/logo.png',
+                badge: '/static/images/badge.png',
+                tag: 'test-notification'
+            });
+        }
+    });
+});
+
+// Helper function to convert VAPID key
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+    
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+</script>
+
 {% endblock %}

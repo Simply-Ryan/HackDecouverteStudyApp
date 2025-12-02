@@ -30,7 +30,7 @@
                     <td>{{ session.location if session.type == 'In-Person' else session.meeting_link }}</td>
                     <td>{{ session.rsvp_count }}</td>
                     <td>
-                        <a href="{{ url_for('session_detail', session_id=session.id) }}">View</a>
+                        <a href="{{ url_for('detail', session_id=session.id) }}">View</a>
                         <a href="{{ url_for('edit_session', session_id=session.id) }}">Edit</a>
                         <a href="{{ url_for('delete_session', session_id=session.id) }}" onclick="return confirm('Are you sure you want to delete this session?');">Delete</a>
                     </td>

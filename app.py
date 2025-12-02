@@ -2043,19 +2043,40 @@ def settings():
         
         # Update settings
         email_notifications = 1 if request.form.get('email_notifications') else 0
+        push_notifications = 1 if request.form.get('push_notifications') else 0
         session_reminders = 1 if request.form.get('session_reminders') else 0
         message_notifications = 1 if request.form.get('message_notifications') else 0
+        reminder_timing = int(request.form.get('reminder_timing', 1))
+        notification_sound = request.form.get('notification_sound', 'default')
         theme = request.form.get('theme', 'purple')
         
-        conn.execute('''
-            UPDATE user_settings
-            SET email_notifications = ?,
-                session_reminders = ?,
-                message_notifications = ?,
-                theme = ?
-            WHERE user_id = ?
-        ''', (email_notifications, session_reminders, message_notifications, 
-              theme, session['user_id']))
+        # Check if settings exist
+        existing = conn.execute('SELECT id FROM user_settings WHERE user_id = ?', 
+                               (session['user_id'],)).fetchone()
+        
+        if existing:
+            conn.execute('''
+                UPDATE user_settings
+                SET email_notifications = ?,
+                    push_notifications = ?,
+                    session_reminders = ?,
+                    message_notifications = ?,
+                    reminder_timing = ?,
+                    notification_sound = ?,
+                    theme = ?
+                WHERE user_id = ?
+            ''', (email_notifications, push_notifications, session_reminders, 
+                  message_notifications, reminder_timing, notification_sound,
+                  theme, session['user_id']))
+        else:
+            conn.execute('''
+                INSERT INTO user_settings (user_id, email_notifications, push_notifications,
+                                          session_reminders, message_notifications,
+                                          reminder_timing, notification_sound, theme)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (session['user_id'], email_notifications, push_notifications,
+                  session_reminders, message_notifications, reminder_timing,
+                  notification_sound, theme))
         
         conn.commit()
         conn.close()
@@ -2068,9 +2089,70 @@ def settings():
     user_settings = conn.execute('''
         SELECT * FROM user_settings WHERE user_id = ?
     ''', (session['user_id'],)).fetchone()
+    
+    # Create default settings if they don't exist
+    if not user_settings:
+        conn.execute('''
+            INSERT INTO user_settings (user_id, email_notifications, session_reminders, 
+                                      message_notifications, theme)
+            VALUES (?, 1, 1, 1, 'purple')
+        ''', (session['user_id'],))
+        conn.commit()
+        
+        user_settings = conn.execute('''
+            SELECT * FROM user_settings WHERE user_id = ?
+        ''', (session['user_id'],)).fetchone()
+    
     conn.close()
     
     return render_template('settings.html', settings=user_settings)
+
+@app.route('/api/push/subscribe', methods=['POST'])
+@login_required
+def subscribe_push():
+    """Subscribe to push notifications"""
+    subscription_data = request.json
+    
+    conn = get_db()
+    
+    # Store subscription in database
+    conn.execute('''
+        INSERT OR REPLACE INTO push_subscriptions 
+        (user_id, endpoint, p256dh_key, auth_key)
+        VALUES (?, ?, ?, ?)
+    ''', (session['user_id'], 
+          subscription_data.get('endpoint'),
+          subscription_data.get('keys', {}).get('p256dh'),
+          subscription_data.get('keys', {}).get('auth')))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True})
+
+@app.route('/api/push/unsubscribe', methods=['POST'])
+@login_required
+def unsubscribe_push():
+    """Unsubscribe from push notifications"""
+    conn = get_db()
+    
+    conn.execute('''
+        DELETE FROM push_subscriptions WHERE user_id = ?
+    ''', (session['user_id'],))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True})
+
+@app.route('/api/push/vapid-public-key')
+def get_vapid_public_key():
+    """Get VAPID public key for push notifications"""
+    # This would be your actual VAPID public key
+    # Generate with: python -c "from py_vapid import Vapid; v = Vapid(); v.generate_keys(); print(v.public_key)"
+    return jsonify({
+        'publicKey': app.config.get('VAPID_PUBLIC_KEY', '')
+    })
 
 @app.route('/uploads/avatars/<filename>')
 def serve_avatar(filename):

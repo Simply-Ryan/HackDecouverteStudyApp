@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Reminder</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f4f7fa;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .email-header {
+            background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        .email-header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .email-header p {
+            margin: 10px 0 0 0;
+            opacity: 0.95;
+            font-size: 16px;
+        }
+        .email-body {
+            padding: 40px 30px;
+        }
+        .reminder-banner {
+            background: #fef3c7;
+            border: 2px solid #fbbf24;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .reminder-banner h3 {
+            margin: 0 0 10px 0;
+            color: #92400e;
+            font-size: 20px;
+        }
+        .countdown {
+            font-size: 32px;
+            font-weight: 700;
+            color: #ea580c;
+            margin: 10px 0;
+        }
+        .session-card {
+            background: #f8f9fc;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .session-card h2 {
+            margin: 0 0 15px 0;
+            color: #2d3748;
+            font-size: 22px;
+        }
+        .session-info {
+            margin: 10px 0;
+            color: #4a5568;
+            font-size: 15px;
+        }
+        .session-info strong {
+            color: #2d3748;
+            display: inline-block;
+            min-width: 100px;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+            color: white;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+        .participant-list {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 6px;
+        }
+        .email-footer {
+            background: #f8f9fc;
+            padding: 30px;
+            text-align: center;
+            color: #718096;
+            font-size: 14px;
+        }
+        .email-footer a {
+            color: #f59e0b;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h1>⏰ Session Reminder</h1>
+            <p>Your study session is coming up soon!</p>
+        </div>
+        
+        <div class="email-body">
+            <p>Hi <strong>{{ user_name }}</strong>,</p>
+            
+            <div class="reminder-banner">
+                <h3>⏰ Session Starting Soon!</h3>
+                <div class="countdown">{{ time_until }}</div>
+                <p style="margin: 0; color: #92400e;">Don't forget to join!</p>
+            </div>
+            
+            <div class="session-card">
+                <h2>{{ session_title }}</h2>
+                <div class="session-info">
+                    <strong>📅 Date:</strong> {{ session_date }}
+                </div>
+                <div class="session-info">
+                    <strong>⏰ Time:</strong> {{ session_time }}
+                </div>
+                <div class="session-info">
+                    <strong>📍 Location:</strong> {{ session_location }}
+                </div>
+                <div class="session-info">
+                    <strong>📚 Subject:</strong> {{ session_subject }}
+                </div>
+                {% if meeting_link %}
+                <div class="session-info">
+                    <strong>🔗 Meeting Link:</strong> <a href="{{ meeting_link }}" style="color: #f59e0b;">Join Here</a>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if participants %}
+            <div class="participant-list">
+                <strong>👥 Participants ({{ participant_count }}):</strong>
+                <p style="margin: 10px 0 0 0;">{{ participants }}</p>
+            </div>
+            {% endif %}
+            
+            <center>
+                <a href="{{ session_link }}" class="cta-button">
+                    View Session Details →
+                </a>
+            </center>
+            
+            <p style="color: #718096; font-size: 14px; margin-top: 30px;">
+                <strong>💡 Quick Tips:</strong><br>
+                • Arrive 5 minutes early to test your setup<br>
+                • Have your study materials ready<br>
+                • Check the chat for any last-minute updates
+            </p>
+        </div>
+        
+        <div class="email-footer">
+            <p>
+                <a href="{{ app_url }}">Visit StudyFlow</a> • 
+                <a href="{{ calendar_link }}">Add to Calendar</a> • 
+                <a href="{{ unsubscribe_link }}">Unsubscribe</a>
+            </p>
+            <p style="margin-top: 15px;">
+                © 2025 StudyFlow. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

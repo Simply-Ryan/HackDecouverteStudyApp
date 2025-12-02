@@ -7,7 +7,7 @@
     <div class="whiteboard-header">
         <h1><i class="fas fa-chalkboard"></i> {{ whiteboard.title }}</h1>
         <div class="whiteboard-actions">
-            <button class="btn-secondary" onclick="window.location.href='{{ url_for('session_detail', session_id=session_id) }}'">
+            <button class="btn-secondary" onclick="window.location.href='{{ url_for('detail', session_id=session_id) }}'">
                 <i class="fas fa-arrow-left"></i> Back to Session
             </button>
             <button class="btn-primary" onclick="saveWhiteboard()">
@@ -228,6 +228,11 @@
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     overflow: hidden;
+    width: 100%;
+    min-height: 600px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 #whiteboard-canvas {
@@ -308,9 +313,14 @@ const MAX_UNDO = 50;
 
 // Initialize Fabric.js canvas
 document.addEventListener('DOMContentLoaded', function() {
+    // Get container dimensions
+    const container = document.querySelector('.canvas-wrapper');
+    const containerWidth = container.offsetWidth;
+    const containerHeight = Math.max(600, window.innerHeight - 350);
+    
     canvas = new fabric.Canvas('whiteboard-canvas', {
-        width: window.innerWidth - 100,
-        height: window.innerHeight - 300,
+        width: containerWidth,
+        height: containerHeight,
         backgroundColor: '#ffffff',
         selection: true
     });
@@ -320,7 +330,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (canvasData && Object.keys(canvasData).length > 0) {
         canvas.loadFromJSON(canvasData, function() {
             canvas.renderAll();
+            // Save initial state to undo stack
+            undoStack.push(canvas.toJSON());
         });
+    } else {
+        // Save initial empty state
+        undoStack.push(canvas.toJSON());
     }
 
     // Socket.IO connection
@@ -341,6 +356,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (action === 'object_added') {
             fabric.util.enlivenObjects([actionData.object], function(objects) {
                 objects.forEach(function(obj) {
+                    obj.fromSync = true; // Mark as synced to prevent re-broadcasting
                     canvas.add(obj);
                 });
                 canvas.renderAll();
@@ -357,8 +373,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 canvas.remove(obj);
             }
         } else if (action === 'clear') {
+            isLoadingState = true;
             canvas.clear();
             canvas.backgroundColor = '#ffffff';
+            canvas.renderAll();
+            isLoadingState = false;
+            undoStack = [];
+            redoStack = [];
         }
     });
 
@@ -442,11 +463,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 30000);
 
     // Handle window resize
+    let resizeTimeout;
     window.addEventListener('resize', function() {
-        canvas.setDimensions({
-            width: window.innerWidth - 100,
-            height: window.innerHeight - 300
-        });
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            const container = document.querySelector('.canvas-wrapper');
+            const containerWidth = container.offsetWidth;
+            const containerHeight = Math.max(600, window.innerHeight - 350);
+            
+            canvas.setDimensions({
+                width: containerWidth,
+                height: containerHeight
+            });
+            canvas.renderAll();
+        }, 250);
     });
 
     // Cleanup on page unload
@@ -555,10 +585,13 @@ function uploadImage(event) {
                     top: canvas.height / 2 - 150
                 });
                 canvas.add(img);
+                canvas.setActiveObject(img);
             });
         };
         reader.readAsDataURL(file);
     }
+    // Reset input to allow re-uploading same file
+    event.target.value = '';
 }
 
 function changeColor() {
@@ -615,32 +648,47 @@ function clearCanvas() {
     }
 }
 
+let isLoadingState = false;
+
 function undo() {
     if (undoStack.length > 0) {
+        isLoadingState = true;
         const state = undoStack.pop();
         redoStack.push(canvas.toJSON());
         canvas.loadFromJSON(state, function() {
             canvas.renderAll();
+            isLoadingState = false;
         });
+        if (redoStack.length > MAX_UNDO) {
+            redoStack.shift();
+        }
     }
 }
 
 function redo() {
     if (redoStack.length > 0) {
+        isLoadingState = true;
         const state = redoStack.pop();
         undoStack.push(canvas.toJSON());
         canvas.loadFromJSON(state, function() {
             canvas.renderAll();
+            isLoadingState = false;
         });
     }
 }
 
 function saveToUndoStack() {
-    undoStack.push(canvas.toJSON());
-    if (undoStack.length > MAX_UNDO) {
-        undoStack.shift();
+    if (isLoadingState) return; // Don't save during undo/redo
+    
+    const currentState = canvas.toJSON();
+    // Only save if state actually changed
+    if (undoStack.length === 0 || JSON.stringify(currentState) !== JSON.stringify(undoStack[undoStack.length - 1])) {
+        undoStack.push(currentState);
+        if (undoStack.length > MAX_UNDO) {
+            undoStack.shift();
+        }
+        redoStack = []; // Clear redo stack on new action
     }
-    redoStack = [];
 }
 
 function saveWhiteboard(silent = false) {

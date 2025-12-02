@@ -399,6 +399,37 @@
         }
     </script>
     
+    <!-- Push Notifications -->
+    {% if session.user_id %}
+    <script>
+        // Register Service Worker for Push Notifications
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+            navigator.serviceWorker.register('/static/service-worker.js')
+                .then(registration => {
+                    console.log('Service Worker registered:', registration);
+                    
+                    // Check if user has granted permission
+                    return navigator.serviceWorker.ready;
+                })
+                .then(registration => {
+                    // Check current subscription
+                    return registration.pushManager.getSubscription()
+                        .then(subscription => {
+                            if (!subscription) {
+                                // No subscription yet - will be handled by settings page
+                                console.log('No push subscription found');
+                            } else {
+                                console.log('Push subscription active');
+                            }
+                        });
+                })
+                .catch(error => {
+                    console.error('Service Worker registration failed:', error);
+                });
+        }
+    </script>
+    {% endif %}
+    
     <!-- Hamburger Menu Script -->
     <script>
         const hamburger = document.getElementById('hamburger');

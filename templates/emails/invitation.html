@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Invitation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f4f7fa;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .email-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        .email-header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .email-header p {
+            margin: 10px 0 0 0;
+            opacity: 0.95;
+            font-size: 16px;
+        }
+        .email-body {
+            padding: 40px 30px;
+        }
+        .session-card {
+            background: #f8f9fc;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .session-card h2 {
+            margin: 0 0 15px 0;
+            color: #2d3748;
+            font-size: 22px;
+        }
+        .session-info {
+            margin: 10px 0;
+            color: #4a5568;
+            font-size: 15px;
+        }
+        .session-info strong {
+            color: #2d3748;
+            display: inline-block;
+            min-width: 100px;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .message-section {
+            background: #fffbf0;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 6px;
+        }
+        .message-section strong {
+            color: #92400e;
+        }
+        .email-footer {
+            background: #f8f9fc;
+            padding: 30px;
+            text-align: center;
+            color: #718096;
+            font-size: 14px;
+        }
+        .email-footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .divider {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h1>📚 Session Invitation</h1>
+            <p>You've been invited to join a study session!</p>
+        </div>
+        
+        <div class="email-body">
+            <p>Hi <strong>{{ invitee_name }}</strong>,</p>
+            
+            <p><strong>{{ inviter_name }}</strong> has invited you to join their study session on StudyFlow.</p>
+            
+            <div class="session-card">
+                <h2>{{ session_title }}</h2>
+                <div class="session-info">
+                    <strong>📅 Date:</strong> {{ session_date }}
+                </div>
+                <div class="session-info">
+                    <strong>⏰ Time:</strong> {{ session_time }}
+                </div>
+                <div class="session-info">
+                    <strong>📍 Location:</strong> {{ session_location }}
+                </div>
+                <div class="session-info">
+                    <strong>📚 Subject:</strong> {{ session_subject }}
+                </div>
+                <div class="session-info">
+                    <strong>👥 Type:</strong> {{ session_type }}
+                </div>
+            </div>
+            
+            {% if invitation_message %}
+            <div class="message-section">
+                <strong>💬 Message from {{ inviter_name }}:</strong>
+                <p style="margin: 10px 0 0 0;">{{ invitation_message }}</p>
+            </div>
+            {% endif %}
+            
+            <center>
+                <a href="{{ invitation_link }}" class="cta-button">
+                    Accept Invitation →
+                </a>
+            </center>
+            
+            <div class="divider"></div>
+            
+            <p style="color: #718096; font-size: 14px;">
+                <strong>What is StudyFlow?</strong><br>
+                StudyFlow is a collaborative study platform where you can join study sessions, share notes, 
+                participate in real-time discussions, and learn together with your peers.
+            </p>
+        </div>
+        
+        <div class="email-footer">
+            <p>
+                <a href="{{ app_url }}">Visit StudyFlow</a> • 
+                <a href="{{ unsubscribe_link }}">Unsubscribe</a>
+            </p>
+            <p style="margin-top: 15px;">
+                © 2025 StudyFlow. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

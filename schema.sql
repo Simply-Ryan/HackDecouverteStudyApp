@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     full_name TEXT NOT NULL,
+    bio TEXT,
+    avatar_filename TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -204,4 +206,41 @@ CREATE TABLE IF NOT EXISTS whiteboards (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS user_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    sessions_created INTEGER DEFAULT 0,
+    sessions_attended INTEGER DEFAULT 0,
+    total_study_hours INTEGER DEFAULT 0,
+    notes_created INTEGER DEFAULT 0,
+    messages_sent INTEGER DEFAULT 0,
+    files_uploaded INTEGER DEFAULT 0,
+    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    email_notifications INTEGER DEFAULT 1,
+    push_notifications INTEGER DEFAULT 1,
+    session_reminders INTEGER DEFAULT 1,
+    message_notifications INTEGER DEFAULT 1,
+    reminder_timing INTEGER DEFAULT 1,
+    notification_sound TEXT DEFAULT 'default',
+    theme TEXT DEFAULT 'purple',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh_key TEXT NOT NULL,
+    auth_key TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
