@@ -72,6 +72,9 @@
             <h2>RSVP to this Session</h2>
             {% if user_has_rsvp or is_creator %}
                 <div class="calendar-buttons">
+                    <a href="{{ url_for('whiteboard', session_id=study_session.id) }}" class="btn-calendar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                        <i class="fas fa-chalkboard"></i> Open Whiteboard
+                    </a>
                     <a href="{{ url_for('export_to_calendar', session_id=study_session.id) }}" class="btn-calendar">
                         <i class="fas fa-calendar-plus"></i> Download .ics
                     </a>

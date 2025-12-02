@@ -34,7 +34,7 @@ A collaborative study session management web application built for **HackDécouv
 - **Public/Private Notes**: Control note visibility
 - **Markdown & Math Support**: Full markdown rendering with LaTeX equations (KaTeX)
 
-### 🤖 AI Study Assistant (NEW!)
+### 🤖 AI Study Assistant
 - **Powered by OpenAI**: GPT-4o-mini integration for intelligent study help
 - **Generate Quiz Questions**: Automatically create practice quizzes from notes
 - **Smart Summarization**: Condense long notes into key points
@@ -43,6 +43,17 @@ A collaborative study session management web application built for **HackDécouv
 - **Interactive Q&A**: Ask questions about your note content
 - **Context-Aware Responses**: AI understands your study materials
 - **See [AI_ASSISTANT_GUIDE.md](AI_ASSISTANT_GUIDE.md) for setup instructions**
+
+### 🎨 Collaborative Whiteboard (NEW!)
+- **Real-Time Drawing**: Multiple users can draw simultaneously
+- **Drawing Tools**: Pen, eraser, shapes (rectangle, circle, triangle, line)
+- **Text & Images**: Add text annotations and upload images
+- **Color & Stroke Control**: Customizable colors and stroke widths
+- **Multi-User Cursors**: See where other users are drawing in real-time
+- **Undo/Redo**: Full history management for all actions
+- **Auto-Save**: Automatic saving every 30 seconds
+- **Export Options**: Download as PNG or PDF
+- **Session Integration**: Each study session gets its own whiteboard
 
 ### 🔔 Notification System
 - **In-App Notifications**: Bell icon in navbar with unread count badge

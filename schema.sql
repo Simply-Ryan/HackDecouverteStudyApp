@@ -193,3 +193,15 @@ CREATE TABLE IF NOT EXISTS flashcards (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (deck_id) REFERENCES flashcard_decks(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS whiteboards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    canvas_data TEXT,
+    created_by INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);

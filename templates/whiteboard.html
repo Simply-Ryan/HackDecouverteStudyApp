@@ -1,0 +1,726 @@
+{% extends "base.html" %}
+
+{% block title %}Whiteboard - {{ session_title }}{% endblock %}
+
+{% block content %}
+<div class="whiteboard-container">
+    <div class="whiteboard-header">
+        <h1><i class="fas fa-chalkboard"></i> {{ whiteboard.title }}</h1>
+        <div class="whiteboard-actions">
+            <button class="btn-secondary" onclick="window.location.href='{{ url_for('session_detail', session_id=session_id) }}'">
+                <i class="fas fa-arrow-left"></i> Back to Session
+            </button>
+            <button class="btn-primary" onclick="saveWhiteboard()">
+                <i class="fas fa-save"></i> Save
+            </button>
+            <button class="btn-secondary" onclick="exportCanvas('png')">
+                <i class="fas fa-download"></i> Export PNG
+            </button>
+            <button class="btn-secondary" onclick="exportCanvas('pdf')">
+                <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="whiteboard-toolbar">
+        <!-- Drawing Tools -->
+        <div class="tool-group">
+            <button class="tool-btn active" id="selectTool" onclick="setTool('select')" title="Select">
+                <i class="fas fa-mouse-pointer"></i>
+            </button>
+            <button class="tool-btn" id="penTool" onclick="setTool('pen')" title="Pen">
+                <i class="fas fa-pen"></i>
+            </button>
+            <button class="tool-btn" id="eraserTool" onclick="setTool('eraser')" title="Eraser">
+                <i class="fas fa-eraser"></i>
+            </button>
+        </div>
+
+        <!-- Shapes -->
+        <div class="tool-group">
+            <button class="tool-btn" onclick="addShape('rectangle')" title="Rectangle">
+                <i class="fas fa-square"></i>
+            </button>
+            <button class="tool-btn" onclick="addShape('circle')" title="Circle">
+                <i class="fas fa-circle"></i>
+            </button>
+            <button class="tool-btn" onclick="addShape('triangle')" title="Triangle">
+                <i class="fas fa-play" style="transform: rotate(-90deg);"></i>
+            </button>
+            <button class="tool-btn" onclick="addShape('line')" title="Line">
+                <i class="fas fa-minus"></i>
+            </button>
+        </div>
+
+        <!-- Text & Image -->
+        <div class="tool-group">
+            <button class="tool-btn" onclick="addText()" title="Add Text">
+                <i class="fas fa-font"></i>
+            </button>
+            <button class="tool-btn" onclick="document.getElementById('imageUpload').click()" title="Upload Image">
+                <i class="fas fa-image"></i>
+            </button>
+            <input type="file" id="imageUpload" accept="image/*" style="display: none;" onchange="uploadImage(event)">
+        </div>
+
+        <!-- Color & Stroke -->
+        <div class="tool-group">
+            <label class="tool-label">Color:</label>
+            <input type="color" id="colorPicker" value="#000000" onchange="changeColor()">
+            
+            <label class="tool-label">Width:</label>
+            <input type="range" id="strokeWidth" min="1" max="20" value="2" onchange="changeStrokeWidth()">
+            <span id="strokeWidthValue">2</span>
+        </div>
+
+        <!-- Actions -->
+        <div class="tool-group">
+            <button class="tool-btn" onclick="undo()" title="Undo">
+                <i class="fas fa-undo"></i>
+            </button>
+            <button class="tool-btn" onclick="redo()" title="Redo">
+                <i class="fas fa-redo"></i>
+            </button>
+            <button class="tool-btn" onclick="deleteSelected()" title="Delete Selected">
+                <i class="fas fa-trash"></i>
+            </button>
+            <button class="tool-btn" onclick="clearCanvas()" title="Clear All">
+                <i class="fas fa-times-circle"></i>
+            </button>
+        </div>
+
+        <!-- Users Online -->
+        <div class="tool-group online-users">
+            <i class="fas fa-users"></i>
+            <span id="onlineCount">1 online</span>
+        </div>
+    </div>
+
+    <div class="canvas-wrapper">
+        <canvas id="whiteboard-canvas"></canvas>
+        <div id="remote-cursors"></div>
+    </div>
+</div>
+
+<!-- Fabric.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+<!-- jsPDF for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+.whiteboard-container {
+    padding: 20px;
+}
+
+.whiteboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--border-color, #e0e0e0);
+}
+
+.whiteboard-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-color, #333);
+    margin: 0;
+}
+
+.whiteboard-header h1 i {
+    color: var(--primary-color, #4A90E2);
+    margin-right: 10px;
+}
+
+.whiteboard-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.whiteboard-toolbar {
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    background: var(--card-background, #fff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.tool-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 0 15px;
+    border-right: 1px solid var(--border-color, #e0e0e0);
+}
+
+.tool-group:last-child {
+    border-right: none;
+}
+
+.tool-btn {
+    padding: 10px 12px;
+    background: var(--background-color, #f8f9fa);
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 16px;
+    color: var(--text-color, #333);
+}
+
+.tool-btn:hover {
+    background: var(--primary-color, #4A90E2);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.tool-btn.active {
+    background: var(--primary-color, #4A90E2);
+    color: white;
+    border-color: var(--primary-color, #4A90E2);
+}
+
+.tool-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color, #555);
+    margin-left: 5px;
+}
+
+#colorPicker {
+    width: 50px;
+    height: 35px;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#strokeWidth {
+    width: 100px;
+}
+
+#strokeWidthValue {
+    font-weight: 600;
+    color: var(--primary-color, #4A90E2);
+    min-width: 25px;
+    text-align: center;
+}
+
+.online-users {
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--success-color, #28a745);
+}
+
+.online-users i {
+    color: var(--success-color, #28a745);
+}
+
+.canvas-wrapper {
+    position: relative;
+    background: white;
+    border: 2px solid var(--border-color, #ddd);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+#whiteboard-canvas {
+    display: block;
+    cursor: crosshair;
+}
+
+#remote-cursors {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.remote-cursor {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+.remote-cursor i {
+    font-size: 20px;
+    color: #FF6B6B;
+    filter: drop-shadow(0 0 2px rgba(0,0,0,0.3));
+}
+
+.remote-cursor-label {
+    position: absolute;
+    top: 20px;
+    left: 10px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .whiteboard-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+    
+    .whiteboard-toolbar {
+        flex-direction: column;
+    }
+    
+    .tool-group {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+        padding: 10px 0;
+    }
+    
+    .tool-group:last-child {
+        border-bottom: none;
+    }
+}
+</style>
+
+<script>
+const whiteboardId = {{ whiteboard.id }};
+const sessionId = {{ session_id }};
+const username = "{{ session.get('full_name', 'Anonymous') }}";
+let canvas;
+let currentTool = 'select';
+let isDrawing = false;
+let currentColor = '#000000';
+let currentStrokeWidth = 2;
+let undoStack = [];
+let redoStack = [];
+const MAX_UNDO = 50;
+
+// Initialize Fabric.js canvas
+document.addEventListener('DOMContentLoaded', function() {
+    canvas = new fabric.Canvas('whiteboard-canvas', {
+        width: window.innerWidth - 100,
+        height: window.innerHeight - 300,
+        backgroundColor: '#ffffff',
+        selection: true
+    });
+
+    // Load existing canvas data
+    const canvasData = {{ whiteboard.canvas_data|tojson|safe }};
+    if (canvasData && Object.keys(canvasData).length > 0) {
+        canvas.loadFromJSON(canvasData, function() {
+            canvas.renderAll();
+        });
+    }
+
+    // Socket.IO connection
+    const socket = io();
+    
+    socket.on('connect', function() {
+        socket.emit('join_whiteboard', {
+            whiteboard_id: whiteboardId,
+            username: username
+        });
+    });
+
+    // Handle incoming whiteboard actions
+    socket.on('whiteboard_action', function(data) {
+        const action = data.action;
+        const actionData = data.data;
+
+        if (action === 'object_added') {
+            fabric.util.enlivenObjects([actionData.object], function(objects) {
+                objects.forEach(function(obj) {
+                    canvas.add(obj);
+                });
+                canvas.renderAll();
+            });
+        } else if (action === 'object_modified') {
+            const obj = canvas.getObjects().find(o => o.id === actionData.objectId);
+            if (obj) {
+                obj.set(actionData.properties);
+                canvas.renderAll();
+            }
+        } else if (action === 'object_removed') {
+            const obj = canvas.getObjects().find(o => o.id === actionData.objectId);
+            if (obj) {
+                canvas.remove(obj);
+            }
+        } else if (action === 'clear') {
+            canvas.clear();
+            canvas.backgroundColor = '#ffffff';
+        }
+    });
+
+    // Handle remote cursors
+    socket.on('cursor_moved', function(data) {
+        updateRemoteCursor(data.username, data.x, data.y);
+    });
+
+    socket.on('user_joined_whiteboard', function(data) {
+        console.log(data.message);
+    });
+
+    socket.on('user_left_whiteboard', function(data) {
+        console.log(data.message);
+        removeRemoteCursor(data.username);
+    });
+
+    // Canvas events
+    canvas.on('object:added', function(e) {
+        if (e.target && !e.target.fromSync) {
+            const obj = e.target;
+            obj.id = Date.now() + Math.random();
+            
+            socket.emit('whiteboard_object_added', {
+                whiteboard_id: whiteboardId,
+                object: obj.toObject(['id'])
+            });
+            
+            saveToUndoStack();
+        }
+    });
+
+    canvas.on('object:modified', function(e) {
+        const obj = e.target;
+        socket.emit('whiteboard_object_modified', {
+            whiteboard_id: whiteboardId,
+            objectId: obj.id,
+            properties: obj.toObject(['id'])
+        });
+        
+        saveToUndoStack();
+    });
+
+    canvas.on('object:removed', function(e) {
+        const obj = e.target;
+        if (obj.id) {
+            socket.emit('whiteboard_object_removed', {
+                whiteboard_id: whiteboardId,
+                objectId: obj.id
+            });
+        }
+    });
+
+    // Mouse tracking for remote cursors
+    canvas.on('mouse:move', function(e) {
+        const pointer = canvas.getPointer(e.e);
+        socket.emit('whiteboard_cursor', {
+            whiteboard_id: whiteboardId,
+            username: username,
+            x: pointer.x,
+            y: pointer.y
+        });
+    });
+
+    // Drawing mode for pen
+    canvas.on('mouse:down', function(e) {
+        if (currentTool === 'pen') {
+            isDrawing = true;
+        }
+    });
+
+    canvas.on('mouse:up', function(e) {
+        if (currentTool === 'pen') {
+            isDrawing = false;
+        }
+    });
+
+    // Auto-save every 30 seconds
+    setInterval(function() {
+        saveWhiteboard(true);
+    }, 30000);
+
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        canvas.setDimensions({
+            width: window.innerWidth - 100,
+            height: window.innerHeight - 300
+        });
+    });
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        socket.emit('leave_whiteboard', {
+            whiteboard_id: whiteboardId,
+            username: username
+        });
+    });
+});
+
+// Tool functions
+function setTool(tool) {
+    currentTool = tool;
+    
+    // Update button states
+    document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(tool + 'Tool').classList.add('active');
+    
+    if (tool === 'select') {
+        canvas.isDrawingMode = false;
+        canvas.selection = true;
+    } else if (tool === 'pen') {
+        canvas.isDrawingMode = true;
+        canvas.freeDrawingBrush.color = currentColor;
+        canvas.freeDrawingBrush.width = currentStrokeWidth;
+    } else if (tool === 'eraser') {
+        canvas.isDrawingMode = true;
+        canvas.freeDrawingBrush.color = '#ffffff';
+        canvas.freeDrawingBrush.width = currentStrokeWidth * 3;
+    }
+}
+
+function addShape(shape) {
+    let obj;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    switch(shape) {
+        case 'rectangle':
+            obj = new fabric.Rect({
+                left: centerX - 50,
+                top: centerY - 50,
+                width: 100,
+                height: 100,
+                fill: 'transparent',
+                stroke: currentColor,
+                strokeWidth: currentStrokeWidth
+            });
+            break;
+        case 'circle':
+            obj = new fabric.Circle({
+                left: centerX - 50,
+                top: centerY - 50,
+                radius: 50,
+                fill: 'transparent',
+                stroke: currentColor,
+                strokeWidth: currentStrokeWidth
+            });
+            break;
+        case 'triangle':
+            obj = new fabric.Triangle({
+                left: centerX - 50,
+                top: centerY - 50,
+                width: 100,
+                height: 100,
+                fill: 'transparent',
+                stroke: currentColor,
+                strokeWidth: currentStrokeWidth
+            });
+            break;
+        case 'line':
+            obj = new fabric.Line([centerX - 50, centerY, centerX + 50, centerY], {
+                stroke: currentColor,
+                strokeWidth: currentStrokeWidth
+            });
+            break;
+    }
+    
+    if (obj) {
+        canvas.add(obj);
+        canvas.setActiveObject(obj);
+    }
+}
+
+function addText() {
+    const text = new fabric.IText('Double click to edit', {
+        left: canvas.width / 2 - 100,
+        top: canvas.height / 2,
+        fontSize: 20,
+        fill: currentColor
+    });
+    canvas.add(text);
+    canvas.setActiveObject(text);
+}
+
+function uploadImage(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            fabric.Image.fromURL(e.target.result, function(img) {
+                img.scaleToWidth(300);
+                img.set({
+                    left: canvas.width / 2 - 150,
+                    top: canvas.height / 2 - 150
+                });
+                canvas.add(img);
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function changeColor() {
+    currentColor = document.getElementById('colorPicker').value;
+    
+    if (currentTool === 'pen') {
+        canvas.freeDrawingBrush.color = currentColor;
+    }
+    
+    const activeObj = canvas.getActiveObject();
+    if (activeObj) {
+        if (activeObj.type === 'i-text' || activeObj.type === 'text') {
+            activeObj.set('fill', currentColor);
+        } else {
+            activeObj.set('stroke', currentColor);
+        }
+        canvas.renderAll();
+    }
+}
+
+function changeStrokeWidth() {
+    currentStrokeWidth = parseInt(document.getElementById('strokeWidth').value);
+    document.getElementById('strokeWidthValue').textContent = currentStrokeWidth;
+    
+    if (currentTool === 'pen') {
+        canvas.freeDrawingBrush.width = currentStrokeWidth;
+    }
+    
+    const activeObj = canvas.getActiveObject();
+    if (activeObj && activeObj.strokeWidth !== undefined) {
+        activeObj.set('strokeWidth', currentStrokeWidth);
+        canvas.renderAll();
+    }
+}
+
+function deleteSelected() {
+    const activeObjects = canvas.getActiveObjects();
+    if (activeObjects.length) {
+        activeObjects.forEach(obj => canvas.remove(obj));
+        canvas.discardActiveObject();
+        canvas.renderAll();
+    }
+}
+
+function clearCanvas() {
+    if (confirm('Are you sure you want to clear the entire canvas?')) {
+        canvas.clear();
+        canvas.backgroundColor = '#ffffff';
+        
+        const socket = io();
+        socket.emit('whiteboard_clear', {
+            whiteboard_id: whiteboardId
+        });
+    }
+}
+
+function undo() {
+    if (undoStack.length > 0) {
+        const state = undoStack.pop();
+        redoStack.push(canvas.toJSON());
+        canvas.loadFromJSON(state, function() {
+            canvas.renderAll();
+        });
+    }
+}
+
+function redo() {
+    if (redoStack.length > 0) {
+        const state = redoStack.pop();
+        undoStack.push(canvas.toJSON());
+        canvas.loadFromJSON(state, function() {
+            canvas.renderAll();
+        });
+    }
+}
+
+function saveToUndoStack() {
+    undoStack.push(canvas.toJSON());
+    if (undoStack.length > MAX_UNDO) {
+        undoStack.shift();
+    }
+    redoStack = [];
+}
+
+function saveWhiteboard(silent = false) {
+    const canvasData = JSON.stringify(canvas.toJSON());
+    
+    fetch(`/whiteboard/${whiteboardId}/save`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            canvas_data: canvasData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && !silent) {
+            alert('Whiteboard saved successfully!');
+        }
+    })
+    .catch(error => {
+        if (!silent) {
+            alert('Error saving whiteboard');
+        }
+        console.error('Error:', error);
+    });
+}
+
+function exportCanvas(format) {
+    if (format === 'png') {
+        const dataURL = canvas.toDataURL({
+            format: 'png',
+            quality: 1
+        });
+        
+        const link = document.createElement('a');
+        link.download = `whiteboard-${whiteboardId}-${Date.now()}.png`;
+        link.href = dataURL;
+        link.click();
+    } else if (format === 'pdf') {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+            orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+            unit: 'px',
+            format: [canvas.width, canvas.height]
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`whiteboard-${whiteboardId}-${Date.now()}.pdf`);
+    }
+}
+
+// Remote cursor management
+const remoteCursors = {};
+
+function updateRemoteCursor(username, x, y) {
+    if (!remoteCursors[username]) {
+        const cursorDiv = document.createElement('div');
+        cursorDiv.className = 'remote-cursor';
+        cursorDiv.id = `cursor-${username}`;
+        cursorDiv.innerHTML = `
+            <i class="fas fa-mouse-pointer"></i>
+            <div class="remote-cursor-label">${username}</div>
+        `;
+        document.getElementById('remote-cursors').appendChild(cursorDiv);
+        remoteCursors[username] = cursorDiv;
+    }
+    
+    const cursor = remoteCursors[username];
+    cursor.style.left = x + 'px';
+    cursor.style.top = y + 'px';
+}
+
+function removeRemoteCursor(username) {
+    if (remoteCursors[username]) {
+        remoteCursors[username].remove();
+        delete remoteCursors[username];
+    }
+}
+</script>
+
+{% endblock %}

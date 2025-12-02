@@ -5,7 +5,7 @@ A comprehensive Flask application for managing study sessions with real-time cha
 flashcards, notes, analytics, user profiles, and AI-powered study assistance.
 
 Author: StudyFlow Team
-Version: 1.16.0
+Version: 1.17.0
 Date: December 2025
 """
 
@@ -3033,6 +3033,205 @@ def handle_disconnect():
         # Clean up empty lists
         if not note_viewers[note_id]:
             del note_viewers[note_id]
+
+# ============================================
+# WHITEBOARD ROUTES
+# ============================================
+
+@app.route('/whiteboard/<int:session_id>')
+@login_required
+def whiteboard(session_id):
+    """View collaborative whiteboard for a session"""
+    conn = get_db()
+    
+    # Check if user has access to session
+    session_access = conn.execute('''
+        SELECT s.id, s.title
+        FROM sessions s
+        LEFT JOIN rsvps r ON s.id = r.session_id
+        WHERE s.id = ? AND (s.creator_id = ? OR r.user_id = ?)
+    ''', (session_id, session['user_id'], session['user_id'])).fetchone()
+    
+    if not session_access:
+        conn.close()
+        flash('Access denied to this session')
+        return redirect(url_for('index'))
+    
+    # Get or create whiteboard for this session
+    whiteboard_data = conn.execute('''
+        SELECT * FROM whiteboards WHERE session_id = ?
+    ''', (session_id,)).fetchone()
+    
+    if not whiteboard_data:
+        # Create new whiteboard
+        conn.execute('''
+            INSERT INTO whiteboards (session_id, title, canvas_data, created_by)
+            VALUES (?, ?, ?, ?)
+        ''', (session_id, f"Whiteboard - {session_access['title']}", '{}', session['user_id']))
+        conn.commit()
+        
+        whiteboard_data = conn.execute('''
+            SELECT * FROM whiteboards WHERE session_id = ?
+        ''', (session_id,)).fetchone()
+    
+    conn.close()
+    
+    return render_template('whiteboard.html', 
+                         whiteboard=whiteboard_data,
+                         session_id=session_id,
+                         session_title=session_access['title'])
+
+@app.route('/whiteboard/<int:whiteboard_id>/save', methods=['POST'])
+@login_required
+def save_whiteboard(whiteboard_id):
+    """Save whiteboard canvas data"""
+    conn = get_db()
+    
+    # Verify access
+    whiteboard = conn.execute('''
+        SELECT w.*, s.creator_id
+        FROM whiteboards w
+        JOIN sessions s ON w.session_id = s.id
+        LEFT JOIN rsvps r ON s.id = r.session_id
+        WHERE w.id = ? AND (s.creator_id = ? OR r.user_id = ?)
+    ''', (whiteboard_id, session['user_id'], session['user_id'])).fetchone()
+    
+    if not whiteboard:
+        conn.close()
+        return jsonify({'error': 'Access denied'}), 403
+    
+    canvas_data = request.json.get('canvas_data', '{}')
+    
+    conn.execute('''
+        UPDATE whiteboards 
+        SET canvas_data = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (canvas_data, whiteboard_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True})
+
+@app.route('/whiteboard/<int:whiteboard_id>/export/<format>')
+@login_required
+def export_whiteboard(whiteboard_id, format):
+    """Export whiteboard as PNG or PDF"""
+    # This will be handled client-side with Fabric.js
+    # This route just verifies access
+    conn = get_db()
+    
+    whiteboard = conn.execute('''
+        SELECT w.*, s.creator_id
+        FROM whiteboards w
+        JOIN sessions s ON w.session_id = s.id
+        LEFT JOIN rsvps r ON s.id = r.session_id
+        WHERE w.id = ? AND (s.creator_id = ? OR r.user_id = ?)
+    ''', (whiteboard_id, session['user_id'], session['user_id'])).fetchone()
+    
+    conn.close()
+    
+    if not whiteboard:
+        flash('Access denied')
+        return redirect(url_for('index'))
+    
+    return jsonify({'success': True, 'whiteboard_id': whiteboard_id})
+
+# ============================================
+# WHITEBOARD SOCKET.IO HANDLERS
+# ============================================
+
+@socketio.on('join_whiteboard')
+def handle_join_whiteboard(data):
+    """Join whiteboard room for real-time collaboration"""
+    whiteboard_id = data.get('whiteboard_id')
+    username = data.get('username', 'Anonymous')
+    
+    room = f'whiteboard_{whiteboard_id}'
+    join_room(room)
+    
+    emit('user_joined_whiteboard', {
+        'username': username,
+        'message': f'{username} joined the whiteboard'
+    }, room=room, include_self=False)
+    
+    print(f"User {username} joined whiteboard {whiteboard_id}")
+
+@socketio.on('whiteboard_draw')
+def handle_whiteboard_draw(data):
+    """Broadcast drawing action to all users in whiteboard"""
+    whiteboard_id = data.get('whiteboard_id')
+    room = f'whiteboard_{whiteboard_id}'
+    
+    emit('whiteboard_action', {
+        'action': 'draw',
+        'data': data
+    }, room=room, include_self=False)
+
+@socketio.on('whiteboard_object_added')
+def handle_object_added(data):
+    """Broadcast new object (shape, text, etc.) to all users"""
+    whiteboard_id = data.get('whiteboard_id')
+    room = f'whiteboard_{whiteboard_id}'
+    
+    emit('whiteboard_action', {
+        'action': 'object_added',
+        'data': data
+    }, room=room, include_self=False)
+
+@socketio.on('whiteboard_object_modified')
+def handle_object_modified(data):
+    """Broadcast object modifications to all users"""
+    whiteboard_id = data.get('whiteboard_id')
+    room = f'whiteboard_{whiteboard_id}'
+    
+    emit('whiteboard_action', {
+        'action': 'object_modified',
+        'data': data
+    }, room=room, include_self=False)
+
+@socketio.on('whiteboard_object_removed')
+def handle_object_removed(data):
+    """Broadcast object removal to all users"""
+    whiteboard_id = data.get('whiteboard_id')
+    room = f'whiteboard_{whiteboard_id}'
+    
+    emit('whiteboard_action', {
+        'action': 'object_removed',
+        'data': data
+    }, room=room, include_self=False)
+
+@socketio.on('whiteboard_clear')
+def handle_whiteboard_clear(data):
+    """Broadcast canvas clear to all users"""
+    whiteboard_id = data.get('whiteboard_id')
+    room = f'whiteboard_{whiteboard_id}'
+    
+    emit('whiteboard_action', {
+        'action': 'clear',
+        'data': data
+    }, room=room, include_self=False)
+
+@socketio.on('whiteboard_cursor')
+def handle_cursor_movement(data):
+    """Broadcast cursor position to other users"""
+    whiteboard_id = data.get('whiteboard_id')
+    room = f'whiteboard_{whiteboard_id}'
+    
+    emit('cursor_moved', data, room=room, include_self=False)
+
+@socketio.on('leave_whiteboard')
+def handle_leave_whiteboard(data):
+    """Leave whiteboard room"""
+    whiteboard_id = data.get('whiteboard_id')
+    username = data.get('username', 'Anonymous')
+    
+    room = f'whiteboard_{whiteboard_id}'
+    leave_room(room)
+    
+    emit('user_left_whiteboard', {
+        'username': username,
+        'message': f'{username} left the whiteboard'
+    }, room=room)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
