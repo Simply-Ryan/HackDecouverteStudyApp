@@ -124,20 +124,14 @@
                         <small>Choose your preferred color theme</small>
                     </label>
                     <select id="theme" name="theme" class="theme-select">
-                        <option value="purple" {% if settings.theme == 'purple' %}selected{% endif %}>
-                            Purple Gradient (Default)
-                        </option>
-                        <option value="blue" {% if settings.theme == 'blue' %}selected{% endif %}>
-                            Ocean Blue
-                        </option>
-                        <option value="green" {% if settings.theme == 'green' %}selected{% endif %}>
-                            Forest Green
+                        <option value="light" {% if not settings.theme or settings.theme == 'light' %}selected{% endif %}>
+                            ☀️ Light Mode
                         </option>
                         <option value="dark" {% if settings.theme == 'dark' %}selected{% endif %}>
-                            Dark Mode
+                            🌙 Dark Mode
                         </option>
                     </select>
-                    <p class="theme-note"><i class="fas fa-info-circle"></i> Theme changes coming soon!</p>
+                    <p class="theme-note"><i class="fas fa-check-circle"></i> Theme changes instantly!</p>
                 </div>
             </div>
             
@@ -605,6 +599,38 @@ function urlBase64ToUint8Array(base64String) {
     }
     return outputArray;
 }
+
+// Theme toggle functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const themeSelect = document.getElementById('theme');
+    
+    // Set initial theme from localStorage
+    const savedTheme = localStorage.getItem('studyflow-theme') || 'light';
+    if (themeSelect) {
+        themeSelect.value = savedTheme;
+    }
+    
+    // Handle theme change
+    themeSelect.addEventListener('change', function() {
+        const selectedTheme = this.value;
+        
+        // Apply theme immediately
+        document.documentElement.setAttribute('data-theme', selectedTheme);
+        
+        // Save to localStorage
+        localStorage.setItem('studyflow-theme', selectedTheme);
+        
+        // Show success message
+        const themeNote = document.querySelector('.theme-note');
+        themeNote.innerHTML = '<i class=\"fas fa-check-circle\"></i> Theme updated! Changes saved automatically.';
+        themeNote.style.color = '#10b981';
+        
+        setTimeout(() => {
+            themeNote.innerHTML = '<i class=\"fas fa-check-circle\"></i> Theme changes instantly!';
+            themeNote.style.color = '';
+        }, 2000);
+    });
+});
 </script>
 
 {% endblock %}
