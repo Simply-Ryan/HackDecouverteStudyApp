@@ -186,7 +186,7 @@
                                     <button class="msg-action-btn" onclick="showReplyForm({{ item.id }}, '{{ item.full_name }}', '{{ item.message_text|replace("'", "\\'") }}')" title="Reply">
                                         <i class="fas fa-reply"></i>
                                     </button>
-                                    <button class="msg-action-btn reaction-picker-btn" onclick="showReactionPicker({{ item.id }})" title="React">
+                                    <button class="msg-action-btn reaction-picker-btn" onclick="event.stopPropagation(); showReactionPicker({{ item.id }})" title="React">
                                         <i class="fas fa-smile"></i>
                                     </button>
                                 </div>
@@ -717,23 +717,39 @@
         }
 
         const messageElement = document.querySelector(`.message-item[data-message-id="${messageId}"]`);
+        if (!messageElement) {
+            console.error('Message element not found:', messageId);
+            return;
+        }
+
         const picker = document.createElement('div');
         picker.className = 'reaction-picker';
         picker.innerHTML = commonEmojis.map(emoji => 
-            `<span class="emoji-option" onclick="toggleReaction(${messageId}, '${emoji}'); this.parentElement.remove();">${emoji}</span>`
+            `<span class="emoji-option" onclick="event.stopPropagation(); toggleReaction(${messageId}, '${emoji}'); this.parentElement.remove();">${emoji}</span>`
         ).join('');
         
-        messageElement.appendChild(picker);
+        // Find the message actions container to position picker relative to it
+        const actionsContainer = messageElement.querySelector('.message-actions-btns');
+        if (actionsContainer) {
+            actionsContainer.style.position = 'relative';
+            actionsContainer.appendChild(picker);
+        } else {
+            messageElement.appendChild(picker);
+        }
         
-        // Close picker when clicking outside
+        // Close picker when clicking outside - use longer timeout for Firefox
         setTimeout(() => {
-            document.addEventListener('click', function closePickerHandler(e) {
-                if (!picker.contains(e.target) && !e.target.classList.contains('reaction-picker-btn')) {
+            const closePickerHandler = (e) => {
+                // Check if click is outside picker and not on reaction button or icon
+                if (!picker.contains(e.target) && 
+                    !e.target.classList.contains('reaction-picker-btn') &&
+                    !e.target.classList.contains('fa-smile')) {
                     picker.remove();
                     document.removeEventListener('click', closePickerHandler);
                 }
-            });
-        }, 10);
+            };
+            document.addEventListener('click', closePickerHandler);
+        }, 100);
     }
 
     function toggleReaction(messageId, emoji) {
