@@ -1,0 +1,542 @@
+{% extends "base.html" %}
+
+{% block title %}{{ group.name }} - StudyFlow{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="group-header">
+        <div class="group-header-left">
+            {% if group.avatar_filename %}
+                <img src="{{ url_for('static', filename='uploads/groups/' + group.avatar_filename) }}" alt="{{ group.name }}" class="group-header-avatar">
+            {% else %}
+                <div class="group-header-avatar group-avatar-placeholder">
+                    <i class="fas fa-users"></i>
+                </div>
+            {% endif %}
+            <div>
+                <h1>{{ group.name }}</h1>
+                <p class="group-header-meta">
+                    <span><i class="fas fa-book"></i> {{ group.subject }}</span>
+                    <span><i class="fas fa-user"></i> {{ members|length }} members</span>
+                    {% if group.group_type == 'private' %}
+                        <span class="badge-private"><i class="fas fa-lock"></i> Private</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        <div class="group-header-actions">
+            {% if is_member %}
+                <button onclick="leaveGroup()" class="btn-secondary">
+                    <i class="fas fa-sign-out-alt"></i> Leave Group
+                </button>
+            {% else %}
+                <button onclick="joinGroupFromDetail()" class="btn-primary">
+                    <i class="fas fa-user-plus"></i> Join Group
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="group-description-box">
+        <p>{{ group.description or 'No description provided.' }}</p>
+    </div>
+
+    <div class="group-content">
+        <div class="group-main">
+            <!-- New Post Section -->
+            {% if is_member %}
+            <div class="new-post-box">
+                <h3><i class="fas fa-pen"></i> Create Post</h3>
+                <form onsubmit="createPost(event)" id="newPostForm">
+                    <input type="text" id="postTitle" placeholder="Post title..." required class="form-control">
+                    <textarea id="postContent" rows="4" placeholder="What's on your mind?" required class="form-control"></textarea>
+                    <div class="post-actions">
+                        <select id="postType" class="form-control-small">
+                            <option value="discussion">Discussion</option>
+                            <option value="question">Question</option>
+                            <option value="announcement">Announcement</option>
+                            <option value="resource">Resource</option>
+                        </select>
+                        <button type="submit" class="btn-primary">Post</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Posts Feed -->
+            <div class="posts-feed">
+                <h3><i class="fas fa-comments"></i> Discussions</h3>
+                {% for post in posts %}
+                <div class="post-card">
+                    <div class="post-header">
+                        <div class="post-author">
+                            {% if post.avatar_filename %}
+                                <img src="{{ url_for('static', filename='uploads/avatars/' + post.avatar_filename) }}" alt="{{ post.full_name }}">
+                            {% else %}
+                                <div class="author-avatar-placeholder">{{ post.full_name[0] }}</div>
+                            {% endif %}
+                            <div>
+                                <strong>{{ post.full_name }}</strong>
+                                <span class="post-time">{{ post.created_at }}</span>
+                            </div>
+                        </div>
+                        <span class="post-type-badge {{ post.post_type }}">{{ post.post_type }}</span>
+                    </div>
+                    <h4>{{ post.title }}</h4>
+                    <p>{{ post.content[:200] }}{% if post.content|length > 200 %}...{% endif %}</p>
+                    <div class="post-stats">
+                        <span><i class="fas fa-comment"></i> {{ post.reply_count }} replies</span>
+                        <span><i class="fas fa-heart"></i> {{ post.reaction_count }} reactions</span>
+                    </div>
+                </div>
+                {% else %}
+                <p class="empty-state">No posts yet. Start a discussion!</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="group-sidebar">
+            <!-- Members -->
+            <div class="sidebar-section">
+                <h3><i class="fas fa-users"></i> Members ({{ members|length }})</h3>
+                <div class="members-list">
+                    {% for member in members[:10] %}
+                    <div class="member-item">
+                        {% if member.avatar_filename %}
+                            <img src="{{ url_for('static', filename='uploads/avatars/' + member.avatar_filename) }}" alt="{{ member.full_name }}">
+                        {% else %}
+                            <div class="member-avatar-placeholder">{{ member.full_name[0] }}</div>
+                        {% endif %}
+                        <div>
+                            <strong>{{ member.full_name }}</strong>
+                            <span class="member-role {{ member.role }}">{{ member.role }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Resources -->
+            <div class="sidebar-section">
+                <h3><i class="fas fa-book"></i> Resources</h3>
+                {% if is_member %}
+                <button onclick="showAddResourceDialog()" class="btn-secondary btn-small btn-block">
+                    <i class="fas fa-plus"></i> Add Resource
+                </button>
+                {% endif %}
+                <div class="resources-list">
+                    {% for resource in resources %}
+                    <div class="resource-item">
+                        <i class="fas fa-{{ 'link' if resource.resource_type == 'link' else 'file' if resource.resource_type == 'file' else 'sticky-note' }}"></i>
+                        <div>
+                            <strong>{{ resource.title }}</strong>
+                            <small>by {{ resource.full_name }}</small>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="empty-state-small">No resources yet</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="sidebar-section">
+                <h3><i class="fas fa-chart-line"></i> Recent Activity</h3>
+                <div class="activity-feed">
+                    {% for activity in activities %}
+                    <div class="activity-item">
+                        <span class="activity-time">{{ activity.created_at }}</span>
+                        <p>{{ activity.full_name }} {{ activity.activity_type.replace('_', ' ') }}</p>
+                    </div>
+                    {% else %}
+                    <p class="empty-state-small">No recent activity</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function createPost(event) {
+    event.preventDefault();
+    
+    const title = document.getElementById('postTitle').value;
+    const content = document.getElementById('postContent').value;
+    const postType = document.getElementById('postType').value;
+    
+    try {
+        const response = await fetch('/api/groups/{{ group.id }}/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content, post_type: postType })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Post created!');
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to create post');
+        }
+    } catch (error) {
+        console.error('Post error:', error);
+        alert('An error occurred');
+    }
+}
+
+async function leaveGroup() {
+    if (!confirm('Are you sure you want to leave this group?')) return;
+    
+    try {
+        const response = await fetch('/api/groups/{{ group.id }}/leave', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            window.location.href = '/groups';
+        } else {
+            alert(data.error || 'Failed to leave group');
+        }
+    } catch (error) {
+        console.error('Leave error:', error);
+        alert('An error occurred');
+    }
+}
+
+async function joinGroupFromDetail() {
+    const groupType = '{{ group.group_type }}';
+    let message = '';
+    
+    if (groupType === 'private') {
+        message = prompt('Optional: Add a message with your join request:');
+        if (message === null) return;
+    }
+    
+    try {
+        const response = await fetch('/api/groups/{{ group.id }}/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to join group');
+        }
+    } catch (error) {
+        console.error('Join error:', error);
+        alert('An error occurred');
+    }
+}
+
+function showAddResourceDialog() {
+    const title = prompt('Resource title:');
+    if (!title) return;
+    
+    const type = prompt('Type (link/note):');
+    if (!type) return;
+    
+    let resourceUrl = null;
+    let content = null;
+    
+    if (type === 'link') {
+        resourceUrl = prompt('URL:');
+        if (!resourceUrl) return;
+    } else {
+        content = prompt('Note content:');
+        if (!content) return;
+    }
+    
+    fetch('/api/groups/{{ group.id }}/resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            title,
+            resource_type: type,
+            resource_url: resourceUrl,
+            content: content
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Resource added!');
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to add resource');
+        }
+    });
+}
+</script>
+
+<style>
+.group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    padding: 2rem;
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+}
+
+.group-header-left {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.group-header-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 12px;
+    object-fit: cover;
+}
+
+.group-avatar-placeholder {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2rem;
+}
+
+.group-header-meta {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.badge-private {
+    padding: 0.25rem 0.75rem;
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border-radius: 12px;
+    font-size: 0.85rem;
+}
+
+.group-description-box {
+    padding: 1.5rem;
+    background: var(--card-bg);
+    border-radius: 12px;
+    margin-bottom: 2rem;
+}
+
+.group-content {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+}
+
+.new-post-box {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+}
+
+.new-post-box h3 {
+    margin-bottom: 1rem;
+}
+
+.new-post-box .form-control {
+    margin-bottom: 1rem;
+}
+
+.post-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+.form-control-small {
+    padding: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.posts-feed {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+}
+
+.post-card {
+    padding: 1.5rem;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+}
+
+.post-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.post-author {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.post-author img,
+.author-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+
+.author-avatar-placeholder {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+
+.post-time {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.post-type-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.post-type-badge.discussion {
+    background: rgba(102, 126, 234, 0.2);
+    color: #667eea;
+}
+
+.post-type-badge.question {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.post-type-badge.announcement {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+}
+
+.post-type-badge.resource {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+}
+
+.post-stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.sidebar-section {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.sidebar-section h3 {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+}
+
+.members-list,
+.resources-list,
+.activity-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.member-item,
+.resource-item {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.member-item img,
+.member-avatar-placeholder {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+}
+
+.member-avatar-placeholder {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+.member-role {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+.member-role.admin {
+    color: #ef4444;
+}
+
+.member-role.moderator {
+    color: #f59e0b;
+}
+
+.activity-item {
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.activity-time {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.activity-item p {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.9rem;
+}
+
+.empty-state-small {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    padding: 1rem 0;
+}
+
+@media (max-width: 968px) {
+    .group-content {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

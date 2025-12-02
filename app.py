@@ -1815,6 +1815,336 @@ def revert_file_version(file_id, version_number):
     })
 
 # ============================================
+# STUDY GROUPS & COMMUNITIES
+# ============================================
+
+@app.route('/groups')
+@login_required
+def groups_list():
+    """Display all study groups"""
+    conn = get_db()
+    
+    # Get all public groups and user's private groups
+    groups = conn.execute('''
+        SELECT g.*, u.full_name as creator_name, u.username as creator_username,
+               COUNT(DISTINCT gm.user_id) as member_count
+        FROM study_groups g
+        JOIN users u ON g.created_by = u.id
+        LEFT JOIN group_members gm ON g.id = gm.group_id
+        WHERE g.is_archived = 0 AND (
+            g.group_type = 'public' OR 
+            g.id IN (SELECT group_id FROM group_members WHERE user_id = ?)
+        )
+        GROUP BY g.id
+        ORDER BY g.created_at DESC
+    ''', (session['user_id'],)).fetchall()
+    
+    # Get user's memberships
+    user_groups = conn.execute('''
+        SELECT group_id FROM group_members WHERE user_id = ?
+    ''', (session['user_id'],)).fetchall()
+    user_group_ids = {g['group_id'] for g in user_groups}
+    
+    conn.close()
+    
+    return render_template('groups.html', 
+                         groups=groups, 
+                         user_group_ids=user_group_ids)
+
+@app.route('/groups/create', methods=['GET', 'POST'])
+@login_required
+def create_group():
+    """Create a new study group"""
+    if request.method == 'POST':
+        name = request.form.get('name')
+        description = request.form.get('description')
+        subject = request.form.get('subject')
+        group_type = request.form.get('group_type', 'public')
+        member_limit = request.form.get('member_limit', 50, type=int)
+        
+        if not name or not subject:
+            flash('Name and subject are required')
+            return redirect(url_for('create_group'))
+        
+        conn = get_db()
+        cursor = conn.execute('''
+            INSERT INTO study_groups (name, description, subject, group_type, member_limit, created_by)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (name, description, subject, group_type, member_limit, session['user_id']))
+        group_id = cursor.lastrowid
+        
+        # Auto-join creator as admin
+        conn.execute('''
+            INSERT INTO group_members (group_id, user_id, role)
+            VALUES (?, ?, 'admin')
+        ''', (group_id, session['user_id']))
+        
+        # Log activity
+        conn.execute('''
+            INSERT INTO group_activities (group_id, user_id, activity_type, activity_data)
+            VALUES (?, ?, 'group_created', ?)
+        ''', (group_id, session['user_id'], f'{{"group_name": "{name}"}}'))
+        
+        conn.commit()
+        conn.close()
+        
+        flash(f'Study group "{name}" created successfully!')
+        return redirect(url_for('group_detail', group_id=group_id))
+    
+    return render_template('create_group.html')
+
+@app.route('/groups/<int:group_id>')
+@login_required
+def group_detail(group_id):
+    """Display group details, posts, and resources"""
+    conn = get_db()
+    
+    # Get group info
+    group = conn.execute('''
+        SELECT g.*, u.full_name as creator_name, u.username as creator_username
+        FROM study_groups g
+        JOIN users u ON g.created_by = u.id
+        WHERE g.id = ?
+    ''', (group_id,)).fetchone()
+    
+    if not group:
+        conn.close()
+        flash('Group not found')
+        return redirect(url_for('groups_list'))
+    
+    # Check if user is member
+    membership = conn.execute('''
+        SELECT * FROM group_members WHERE group_id = ? AND user_id = ?
+    ''', (group_id, session['user_id'])).fetchone()
+    
+    # If private group and not a member, redirect
+    if group['group_type'] == 'private' and not membership:
+        conn.close()
+        flash('This is a private group')
+        return redirect(url_for('groups_list'))
+    
+    # Get members
+    members = conn.execute('''
+        SELECT gm.*, u.full_name, u.username, u.avatar_filename
+        FROM group_members gm
+        JOIN users u ON gm.user_id = u.id
+        WHERE gm.group_id = ?
+        ORDER BY gm.role, gm.joined_at
+    ''', (group_id,)).fetchall()
+    
+    # Get posts
+    posts = conn.execute('''
+        SELECT p.*, u.full_name, u.username, u.avatar_filename,
+               COUNT(DISTINCT r.id) as reply_count,
+               COUNT(DISTINCT pr.id) as reaction_count
+        FROM group_posts p
+        JOIN users u ON p.user_id = u.id
+        LEFT JOIN group_post_replies r ON p.id = r.post_id
+        LEFT JOIN group_post_reactions pr ON p.id = pr.post_id
+        WHERE p.group_id = ?
+        GROUP BY p.id
+        ORDER BY p.is_pinned DESC, p.created_at DESC
+        LIMIT 20
+    ''', (group_id,)).fetchall()
+    
+    # Get resources
+    resources = conn.execute('''
+        SELECT gr.*, u.full_name, u.username
+        FROM group_resources gr
+        JOIN users u ON gr.user_id = u.id
+        WHERE gr.group_id = ?
+        ORDER BY gr.created_at DESC
+        LIMIT 10
+    ''', (group_id,)).fetchall()
+    
+    # Get recent activities
+    activities = conn.execute('''
+        SELECT ga.*, u.full_name, u.username
+        FROM group_activities ga
+        JOIN users u ON ga.user_id = u.id
+        WHERE ga.group_id = ?
+        ORDER BY ga.created_at DESC
+        LIMIT 10
+    ''', (group_id,)).fetchall()
+    
+    conn.close()
+    
+    return render_template('group_detail.html',
+                         group=group,
+                         membership=membership,
+                         members=members,
+                         posts=posts,
+                         resources=resources,
+                         activities=activities,
+                         is_member=bool(membership))
+
+@app.route('/api/groups/<int:group_id>/join', methods=['POST'])
+@login_required
+def join_group(group_id):
+    """Join a public group or request to join private group"""
+    conn = get_db()
+    group = conn.execute('SELECT * FROM study_groups WHERE id = ?', (group_id,)).fetchone()
+    
+    if not group:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Group not found'}), 404
+    
+    # Check if already a member
+    existing = conn.execute('''
+        SELECT id FROM group_members WHERE group_id = ? AND user_id = ?
+    ''', (group_id, session['user_id'])).fetchone()
+    
+    if existing:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Already a member'}), 400
+    
+    if group['group_type'] == 'public':
+        # Direct join for public groups
+        conn.execute('''
+            INSERT INTO group_members (group_id, user_id, role)
+            VALUES (?, ?, 'member')
+        ''', (group_id, session['user_id']))
+        
+        # Log activity
+        conn.execute('''
+            INSERT INTO group_activities (group_id, user_id, activity_type)
+            VALUES (?, ?, 'member_joined')
+        ''', (group_id, session['user_id']))
+        
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Joined group successfully'})
+    else:
+        # Create join request for private groups
+        data = request.get_json() or {}
+        message = data.get('message', '')
+        
+        try:
+            conn.execute('''
+                INSERT INTO group_join_requests (group_id, user_id, message)
+                VALUES (?, ?, ?)
+            ''', (group_id, session['user_id'], message))
+            conn.commit()
+            conn.close()
+            return jsonify({'success': True, 'message': 'Join request sent'})
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Request already pending'}), 400
+
+@app.route('/api/groups/<int:group_id>/leave', methods=['POST'])
+@login_required
+def leave_group(group_id):
+    """Leave a group"""
+    conn = get_db()
+    
+    # Check if user is the creator
+    group = conn.execute('SELECT created_by FROM study_groups WHERE id = ?', (group_id,)).fetchone()
+    if group and group['created_by'] == session['user_id']:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Group creator cannot leave'}), 400
+    
+    conn.execute('DELETE FROM group_members WHERE group_id = ? AND user_id = ?',
+                (group_id, session['user_id']))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Left group successfully'})
+
+@app.route('/api/groups/<int:group_id>/posts', methods=['POST'])
+@login_required
+def create_group_post(group_id):
+    """Create a new discussion post"""
+    data = request.get_json()
+    title = data.get('title')
+    content = data.get('content')
+    post_type = data.get('post_type', 'discussion')
+    
+    if not title or not content:
+        return jsonify({'success': False, 'error': 'Title and content required'}), 400
+    
+    conn = get_db()
+    
+    # Verify membership
+    membership = conn.execute('''
+        SELECT id FROM group_members WHERE group_id = ? AND user_id = ?
+    ''', (group_id, session['user_id'])).fetchone()
+    
+    if not membership:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Must be a member to post'}), 403
+    
+    cursor = conn.execute('''
+        INSERT INTO group_posts (group_id, user_id, title, content, post_type)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (group_id, session['user_id'], title, content, post_type))
+    post_id = cursor.lastrowid
+    
+    # Log activity
+    conn.execute('''
+        INSERT INTO group_activities (group_id, user_id, activity_type, activity_data)
+        VALUES (?, ?, 'post_created', ?)
+    ''', (group_id, session['user_id'], f'{{"post_id": {post_id}, "title": "{title}"}}'))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'post_id': post_id, 'message': 'Post created'})
+
+@app.route('/api/groups/posts/<int:post_id>/reply', methods=['POST'])
+@login_required
+def reply_to_post(post_id):
+    """Reply to a discussion post"""
+    data = request.get_json()
+    content = data.get('content')
+    
+    if not content:
+        return jsonify({'success': False, 'error': 'Content required'}), 400
+    
+    conn = get_db()
+    cursor = conn.execute('''
+        INSERT INTO group_post_replies (post_id, user_id, content)
+        VALUES (?, ?, ?)
+    ''', (post_id, session['user_id'], content))
+    reply_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'reply_id': reply_id})
+
+@app.route('/api/groups/<int:group_id>/resources', methods=['POST'])
+@login_required
+def add_group_resource(group_id):
+    """Add a resource to the group"""
+    data = request.get_json()
+    title = data.get('title')
+    description = data.get('description')
+    resource_type = data.get('resource_type')
+    resource_url = data.get('resource_url')
+    content = data.get('content')
+    
+    if not title or not resource_type:
+        return jsonify({'success': False, 'error': 'Title and type required'}), 400
+    
+    conn = get_db()
+    cursor = conn.execute('''
+        INSERT INTO group_resources 
+        (group_id, user_id, title, description, resource_type, resource_url, content)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (group_id, session['user_id'], title, description, resource_type, resource_url, content))
+    resource_id = cursor.lastrowid
+    
+    # Log activity
+    conn.execute('''
+        INSERT INTO group_activities (group_id, user_id, activity_type, activity_data)
+        VALUES (?, ?, 'resource_added', ?)
+    ''', (group_id, session['user_id'], f'{{"resource_id": {resource_id}, "title": "{title}"}}'))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'resource_id': resource_id})
+
+# ============================================
 # ANALYTICS DASHBOARD
 # ============================================
 

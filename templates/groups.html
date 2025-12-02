@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Study Groups - StudyFlow{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1><i class="fas fa-users"></i> Study Groups & Communities</h1>
+        <a href="{{ url_for('create_group') }}" class="btn-primary">
+            <i class="fas fa-plus"></i> Create Group
+        </a>
+    </div>
+
+    <div class="groups-filters">
+        <input type="text" id="searchGroups" placeholder="Search groups..." class="search-input">
+        <select id="subjectFilter" class="filter-dropdown">
+            <option value="">All Subjects</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="Computer Science">Computer Science</option>
+            <option value="Physics">Physics</option>
+            <option value="Chemistry">Chemistry</option>
+            <option value="Biology">Biology</option>
+            <option value="Literature">Literature</option>
+            <option value="History">History</option>
+            <option value="Languages">Languages</option>
+        </select>
+        <select id="typeFilter" class="filter-dropdown">
+            <option value="">All Types</option>
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+        </select>
+    </div>
+
+    <div class="groups-grid">
+        {% for group in groups %}
+        <div class="group-card" data-subject="{{ group.subject }}" data-type="{{ group.group_type }}">
+            <div class="group-card-header">
+                {% if group.avatar_filename %}
+                    <img src="{{ url_for('static', filename='uploads/groups/' + group.avatar_filename) }}" alt="{{ group.name }}" class="group-avatar">
+                {% else %}
+                    <div class="group-avatar group-avatar-placeholder">
+                        <i class="fas fa-users"></i>
+                    </div>
+                {% endif %}
+                <div class="group-badge-container">
+                    {% if group.group_type == 'private' %}
+                        <span class="group-type-badge private">
+                            <i class="fas fa-lock"></i> Private
+                        </span>
+                    {% else %}
+                        <span class="group-type-badge public">
+                            <i class="fas fa-globe"></i> Public
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="group-card-body">
+                <h3>{{ group.name }}</h3>
+                <p class="group-description">{{ group.description[:120] }}{% if group.description and group.description|length > 120 %}...{% endif %}</p>
+                
+                <div class="group-meta">
+                    <span class="group-subject">
+                        <i class="fas fa-book"></i> {{ group.subject }}
+                    </span>
+                    <span class="group-members">
+                        <i class="fas fa-user"></i> {{ group.member_count }} member{{ 's' if group.member_count != 1 else '' }}
+                    </span>
+                </div>
+                
+                <div class="group-creator">
+                    <span>Created by <strong>{{ group.creator_name }}</strong></span>
+                </div>
+            </div>
+            
+            <div class="group-card-footer">
+                {% if group.id in user_group_ids %}
+                    <a href="{{ url_for('group_detail', group_id=group.id) }}" class="btn-primary btn-block">
+                        <i class="fas fa-arrow-right"></i> View Group
+                    </a>
+                {% else %}
+                    <button onclick="joinGroup({{ group.id }}, '{{ group.group_type }}')" class="btn-secondary btn-block">
+                        <i class="fas fa-user-plus"></i> Join Group
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <p class="empty-state">No study groups available. <a href="{{ url_for('create_group') }}">Create the first one!</a></p>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+async function joinGroup(groupId, groupType) {
+    let message = '';
+    if (groupType === 'private') {
+        message = prompt('Optional: Add a message with your join request:');
+        if (message === null) return; // User cancelled
+    }
+    
+    try {
+        const response = await fetch(`/api/groups/${groupId}/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to join group');
+        }
+    } catch (error) {
+        console.error('Join error:', error);
+        alert('An error occurred');
+    }
+}
+
+// Search and filter functionality
+document.getElementById('searchGroups').addEventListener('input', filterGroups);
+document.getElementById('subjectFilter').addEventListener('change', filterGroups);
+document.getElementById('typeFilter').addEventListener('change', filterGroups);
+
+function filterGroups() {
+    const searchTerm = document.getElementById('searchGroups').value.toLowerCase();
+    const subjectFilter = document.getElementById('subjectFilter').value;
+    const typeFilter = document.getElementById('typeFilter').value;
+    
+    const cards = document.querySelectorAll('.group-card');
+    cards.forEach(card => {
+        const name = card.querySelector('h3').textContent.toLowerCase();
+        const description = card.querySelector('.group-description').textContent.toLowerCase();
+        const subject = card.dataset.subject;
+        const type = card.dataset.type;
+        
+        const matchesSearch = name.includes(searchTerm) || description.includes(searchTerm);
+        const matchesSubject = !subjectFilter || subject === subjectFilter;
+        const matchesType = !typeFilter || type === typeFilter;
+        
+        card.style.display = matchesSearch && matchesSubject && matchesType ? 'flex' : 'none';
+    });
+}
+</script>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.groups-filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.search-input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.groups-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.group-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+.group-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+.group-card-header {
+    position: relative;
+    height: 120px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.group-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 4px solid white;
+    object-fit: cover;
+}
+
+.group-avatar-placeholder {
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2rem;
+}
+
+.group-badge-container {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+}
+
+.group-type-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.group-type-badge.public {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.group-type-badge.private {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.group-card-body {
+    padding: 1.5rem;
+    flex: 1;
+}
+
+.group-card-body h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.25rem;
+}
+
+.group-description {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.group-meta {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.group-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.group-subject {
+    color: #667eea !important;
+    font-weight: 500;
+}
+
+.group-creator {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.group-card-footer {
+    padding: 1rem 1.5rem;
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-block {
+    width: 100%;
+    justify-content: center;
+}
+</style>
+{% endblock %}

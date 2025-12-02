@@ -422,3 +422,118 @@ CREATE INDEX IF NOT EXISTS idx_file_versions_file ON file_versions(file_id);
 CREATE INDEX IF NOT EXISTS idx_file_tag_rel_file ON file_tag_relationships(file_id);
 CREATE INDEX IF NOT EXISTS idx_file_tag_rel_tag ON file_tag_relationships(tag_id);
 CREATE INDEX IF NOT EXISTS idx_file_favorites_user ON file_favorites(user_id);
+
+-- Study Groups & Communities Tables
+CREATE TABLE IF NOT EXISTS study_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    subject TEXT NOT NULL,
+    group_type TEXT DEFAULT 'public',
+    avatar_filename TEXT,
+    created_by INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    member_limit INTEGER DEFAULT 50,
+    is_archived INTEGER DEFAULT 0,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS group_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT DEFAULT 'member',
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES study_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(group_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_join_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    message TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TIMESTAMP,
+    reviewed_by INTEGER,
+    FOREIGN KEY (group_id) REFERENCES study_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id),
+    UNIQUE(group_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS group_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    post_type TEXT DEFAULT 'discussion',
+    is_pinned INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES study_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS group_post_replies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES group_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS group_post_reactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    reaction_type TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES group_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(post_id, user_id, reaction_type)
+);
+
+CREATE TABLE IF NOT EXISTS group_resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    resource_type TEXT NOT NULL,
+    resource_url TEXT,
+    filename TEXT,
+    content TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES study_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS group_activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    activity_type TEXT NOT NULL,
+    activity_data TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES study_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Study groups indexes
+CREATE INDEX IF NOT EXISTS idx_study_groups_created_by ON study_groups(created_by);
+CREATE INDEX IF NOT EXISTS idx_study_groups_subject ON study_groups(subject);
+CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_posts_group ON group_posts(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_posts_user ON group_posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_post_replies_post ON group_post_replies(post_id);
+CREATE INDEX IF NOT EXISTS idx_group_resources_group ON group_resources(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_activities_group ON group_activities(group_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_group ON sessions(group_id);
