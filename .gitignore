@@ -12,6 +12,11 @@ ENV/
 instance/
 .webassets-cache
 
+# Environment variables
+.env
+.env.*
+!.env.example
+
 # Database
 sessions.db
 *.db
