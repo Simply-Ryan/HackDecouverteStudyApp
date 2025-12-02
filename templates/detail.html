@@ -3,6 +3,16 @@
 {% block title %}{{ study_session.title }} - Study Session{% endblock %}
 
 {% block content %}
+<!-- SVG Gradient Definition for Pomodoro Timer -->
+<svg style="display:none;">
+    <defs>
+        <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+        </linearGradient>
+    </defs>
+</svg>
+
 <div class="session-detail">
     <div class="detail-header">
         <h1>{{ study_session.title }}</h1>
@@ -147,6 +157,54 @@
             <p class="empty-state">No participants yet. Be the first to RSVP!</p>
         {% endif %}
     </div>
+
+    <!-- Pomodoro Timer Widget -->
+    {% if user_has_rsvp or is_creator %}
+    <div class="pomodoro-widget">
+        <div class="pomodoro-header">
+            <h2><i class="fas fa-clock"></i> Focus Timer</h2>
+            <button class="pomodoro-stats-btn" onclick="showPomodoroStats()" title="View Statistics">
+                <i class="fas fa-chart-line"></i>
+            </button>
+        </div>
+        
+        <div class="pomodoro-display" id="pomodoroDisplay">
+            <div class="timer-circle">
+                <svg class="timer-svg" viewBox="0 0 200 200">
+                    <circle class="timer-bg" cx="100" cy="100" r="90"></circle>
+                    <circle class="timer-progress" id="timerProgress" cx="100" cy="100" r="90"></circle>
+                </svg>
+                <div class="timer-text">
+                    <div class="timer-time" id="timerTime">25:00</div>
+                    <div class="timer-label" id="timerLabel">Focus Time</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="pomodoro-controls">
+            <button class="pomodoro-btn start-btn" id="startPomodoroBtn" onclick="togglePomodoro()">
+                <i class="fas fa-play"></i> Start
+            </button>
+            <button class="pomodoro-btn reset-btn" onclick="resetPomodoro()">
+                <i class="fas fa-redo"></i> Reset
+            </button>
+            <button class="pomodoro-btn settings-btn" onclick="showPomodoroSettings()">
+                <i class="fas fa-cog"></i> Settings
+            </button>
+        </div>
+        
+        <div class="pomodoro-progress-info">
+            <div class="progress-stat">
+                <i class="fas fa-fire"></i>
+                <span id="todayPomodoros">0</span> today
+            </div>
+            <div class="progress-stat">
+                <i class="fas fa-trophy"></i>
+                <span id="streakDays">0</span> day streak
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="study-room-chat">
         <h2>Study Room Chat</h2>
@@ -834,7 +892,29 @@
     </script>
 
     <div class="file-upload-section">
-        <h2>Study Materials</h2>
+        <div class="file-header">
+            <h2>Study Materials</h2>
+            <div class="file-controls">
+                <button class="btn-secondary btn-small" onclick="showFolderDialog()" title="New Folder">
+                    <i class="fas fa-folder-plus"></i>
+                </button>
+                <button class="btn-secondary btn-small" onclick="toggleBulkSelect()" title="Select Multiple">
+                    <i class="fas fa-check-square"></i>
+                </button>
+                <button class="btn-secondary btn-small" id="bulkDownloadBtn" style="display:none;" onclick="bulkDownload()" title="Download Selected">
+                    <i class="fas fa-download"></i>
+                </button>
+                <select class="filter-dropdown" id="categoryFilter" onchange="filterFiles()">
+                    <option value="">All Categories</option>
+                    <option value="1">Notes</option>
+                    <option value="2">Slides</option>
+                    <option value="3">Assignments</option>
+                    <option value="4">Resources</option>
+                    <option value="5">Code</option>
+                    <option value="6">Other</option>
+                </select>
+            </div>
+        </div>
         
         {% if files %}
             <div class="files-list-horizontal" id="filesList">
@@ -864,11 +944,25 @@
                                 {% endif %}
                             </div>
                         {% endif %}
+                        <input type="checkbox" class="file-bulk-select" style="display:none;" data-file-id="{{ file.id }}">
                         <div class="file-card-info">
                             <div class="file-card-name" title="{{ file.original_filename }}">{{ file.original_filename }}</div>
                             <div class="file-card-meta">{{ file.full_name }}</div>
+                            <div class="file-card-badges">
+                                <span class="file-badge category-badge" data-file-id="{{ file.id }}">
+                                    <i class="fas fa-tag"></i> <span id="category-{{ file.id }}">Uncategorized</span>
+                                </span>
+                                {% if file.version and file.version > 1 %}
+                                    <span class="file-badge version-badge" onclick="showVersionHistory({{ file.id }})">
+                                        <i class="fas fa-history"></i> v{{ file.version }}
+                                    </span>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="file-card-actions">
+                            <button onclick="toggleFileFavorite({{ file.id }})" class="btn-secondary btn-small file-favorite-btn" id="fav-{{ file.id }}" title="Favorite">
+                                <i class="far fa-star"></i>
+                            </button>
                             {% if file.file_type in ['png', 'jpg', 'jpeg', 'gif', 'pdf'] %}
                                 <button onclick="openPreviewModal({{ file.id }}, '{{ file.file_type }}', '{{ file.original_filename }}', {{ file.user_id }})" class="btn-primary btn-small" title="Preview">
                                     <i class="fas fa-eye"></i>
@@ -877,6 +971,9 @@
                             <a href="{{ url_for('download_file', file_id=file.id) }}" class="btn-secondary btn-small" title="Download">
                                 <i class="fas fa-download"></i>
                             </a>
+                            <button onclick="showFileOptions({{ file.id }})" class="btn-secondary btn-small" title="More Options">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
                             {% if 'user_id' in session and (session['user_id'] == file.user_id or session['user_id'] == study_session.creator_id) %}
                                 <form method="POST" action="{{ url_for('delete_file', file_id=file.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this file?');">
                                     <button type="submit" class="btn-danger btn-small" title="Delete">
@@ -1424,6 +1521,275 @@
             closePreviewModal();
         }
     }
+
+    // Advanced File Management Functions
+    let bulkSelectMode = false;
+    const selectedFiles = new Set();
+
+    function toggleBulkSelect() {
+        bulkSelectMode = !bulkSelectMode;
+        const checkboxes = document.querySelectorAll('.file-bulk-select');
+        const bulkDownloadBtn = document.getElementById('bulkDownloadBtn');
+        
+        checkboxes.forEach(cb => {
+            cb.style.display = bulkSelectMode ? 'block' : 'none';
+            if (!bulkSelectMode) cb.checked = false;
+        });
+        
+        bulkDownloadBtn.style.display = bulkSelectMode ? 'inline-block' : 'none';
+        selectedFiles.clear();
+    }
+
+    function bulkDownload() {
+        const checkboxes = document.querySelectorAll('.file-bulk-select:checked');
+        const fileIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.fileId));
+        
+        if (fileIds.length === 0) {
+            alert('Please select files to download');
+            return;
+        }
+
+        fetch('/api/files/bulk-download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_ids: fileIds })
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'study-materials.zip';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        })
+        .catch(error => {
+            console.error('Bulk download error:', error);
+            alert('Failed to download files');
+        });
+    }
+
+    function filterFiles() {
+        const categoryFilter = document.getElementById('categoryFilter').value;
+        const fileCards = document.querySelectorAll('.file-card');
+        
+        fileCards.forEach(card => {
+            const categoryBadge = card.querySelector('.category-badge span');
+            if (!categoryFilter || categoryBadge.textContent.includes(categoryFilter)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    async function toggleFileFavorite(fileId) {
+        try {
+            const response = await fetch(`/api/files/${fileId}/favorite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                const btn = document.getElementById(`fav-${fileId}`);
+                const icon = btn.querySelector('i');
+                icon.className = data.is_favorite ? 'fas fa-star' : 'far fa-star';
+                btn.style.color = data.is_favorite ? '#f59e0b' : '';
+            }
+        } catch (error) {
+            console.error('Favorite toggle error:', error);
+        }
+    }
+
+    function showFileOptions(fileId) {
+        const options = [
+            'Categorize',
+            'Add Tags',
+            'Move to Folder',
+            'Upload New Version',
+            'View Version History',
+            'Archive',
+            'Cancel'
+        ];
+        
+        const choice = prompt('File Options:\n' + options.map((o, i) => `${i+1}. ${o}`).join('\n') + '\n\nEnter option number:');
+        
+        switch(choice) {
+            case '1':
+                showCategoryDialog(fileId);
+                break;
+            case '2':
+                showTagDialog(fileId);
+                break;
+            case '3':
+                showFolderDialog(fileId);
+                break;
+            case '4':
+                showUploadVersionDialog(fileId);
+                break;
+            case '5':
+                showVersionHistory(fileId);
+                break;
+            case '6':
+                archiveFile(fileId);
+                break;
+        }
+    }
+
+    function showCategoryDialog(fileId) {
+        const categories = ['Notes', 'Slides', 'Assignments', 'Resources', 'Code', 'Other'];
+        const choice = prompt('Select Category:\n' + categories.map((c, i) => `${i+1}. ${c}`).join('\n'));
+        
+        if (choice && choice >= 1 && choice <= 6) {
+            fetch(`/api/files/${fileId}/categorize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category_id: parseInt(choice) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById(`category-${fileId}`).textContent = categories[choice - 1];
+                    alert('File categorized successfully!');
+                }
+            });
+        }
+    }
+
+    function showTagDialog(fileId) {
+        const tagNames = prompt('Enter tags (comma-separated):');
+        if (!tagNames) return;
+        
+        // For now, just show a success message
+        // Full implementation would require tag ID lookup or creation
+        alert('Tags feature coming soon! You entered: ' + tagNames);
+    }
+
+    function showFolderDialog(fileIdOrNull = null) {
+        const folderName = prompt('Enter folder name:');
+        if (!folderName) return;
+        
+        fetch('/api/files/folders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: {{ study_session.id }},
+                name: folderName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Folder created successfully!');
+                if (fileIdOrNull) {
+                    moveFileToFolder(fileIdOrNull, data.folder.id);
+                }
+            }
+        });
+    }
+
+    function moveFileToFolder(fileId, folderId) {
+        fetch(`/api/files/${fileId}/move`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder_id: folderId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('File moved to folder!');
+            }
+        });
+    }
+
+    function showUploadVersionDialog(fileId) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const description = prompt('Describe what changed in this version:');
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('change_description', description || '');
+            
+            try {
+                const response = await fetch(`/api/files/${fileId}/upload-version`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Upload failed: ' + data.error);
+                }
+            } catch (error) {
+                alert('Upload error: ' + error.message);
+            }
+        };
+        input.click();
+    }
+
+    async function showVersionHistory(fileId) {
+        try {
+            const response = await fetch(`/api/files/${fileId}/versions`);
+            const data = await response.json();
+            
+            if (data.success && data.versions.length > 0) {
+                let message = 'Version History:\n\n';
+                data.versions.forEach(v => {
+                    message += `Version ${v.version_number} - ${v.uploader_name}\n`;
+                    message += `Uploaded: ${v.uploaded_at}\n`;
+                    if (v.change_description) message += `Changes: ${v.change_description}\n`;
+                    message += '\n';
+                });
+                alert(message);
+            } else {
+                alert('No version history available');
+            }
+        } catch (error) {
+            console.error('Version history error:', error);
+            alert('Failed to load version history');
+        }
+    }
+
+    async function archiveFile(fileId) {
+        if (!confirm('Archive this file? It will be hidden but not deleted.')) return;
+        
+        try {
+            const response = await fetch(`/api/files/${fileId}/archive`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_archived: 1 })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            }
+        } catch (error) {
+            console.error('Archive error:', error);
+        }
+    }
+
+    // Load file metadata on page load
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Load categories for each file
+        const categoryBadges = document.querySelectorAll('.category-badge');
+        categoryBadges.forEach(async badge => {
+            const fileId = badge.dataset.fileId;
+            // Category data would be loaded from server
+            // For now, categories are shown from database on page load
+        });
+    });
     </script>
 
     <!-- Preview Modal -->
@@ -1649,6 +2015,267 @@
             }
         });
     });
+
+    // =============================================
+    // POMODORO TIMER
+    // =============================================
+    
+    let pomodoroTimer = null;
+    let pomodoroTimeLeft = 25 * 60; // 25 minutes in seconds
+    let pomodoroTotalTime = 25 * 60;
+    let pomodoroRunning = false;
+    let currentPomodoroId = null;
+    let pomodoroType = 'work'; // 'work', 'short_break', 'long_break'
+    let pomodorosCompleted = 0;
+    
+    // Load user preferences
+    async function loadPomodoroPreferences() {
+        try {
+            const response = await fetch('/api/pomodoro/preferences');
+            const data = await response.json();
+            if (data.success) {
+                const prefs = data.preferences;
+                if (pomodoroType === 'work') {
+                    pomodoroTimeLeft = prefs.work_duration * 60;
+                    pomodoroTotalTime = prefs.work_duration * 60;
+                }
+                updateTimerDisplay();
+            }
+        } catch (error) {
+            console.error('Error loading preferences:', error);
+        }
+    }
+    
+    // Load statistics
+    async function loadPomodoroStatistics() {
+        try {
+            const response = await fetch('/api/pomodoro/statistics');
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('todayPomodoros').textContent = data.today.pomodoros;
+                document.getElementById('streakDays').textContent = data.streak;
+                pomodorosCompleted = data.today.pomodoros;
+            }
+        } catch (error) {
+            console.error('Error loading statistics:', error);
+        }
+    }
+    
+    function togglePomodoro() {
+        if (pomodoroRunning) {
+            pausePomodoro();
+        } else {
+            startPomodoro();
+        }
+    }
+    
+    async function startPomodoro() {
+        if (!pomodoroRunning && !currentPomodoroId) {
+            // Start new pomodoro session in backend
+            try {
+                const response = await fetch('/api/pomodoro/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: {{ study_session.id }},
+                        type: pomodoroType,
+                        duration: pomodoroTotalTime / 60
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    currentPomodoroId = data.pomodoro_id;
+                }
+            } catch (error) {
+                console.error('Error starting pomodoro:', error);
+            }
+        }
+        
+        pomodoroRunning = true;
+        const startBtn = document.getElementById('startPomodoroBtn');
+        startBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+        startBtn.classList.add('pause');
+        
+        pomodoroTimer = setInterval(() => {
+            pomodoroTimeLeft--;
+            updateTimerDisplay();
+            
+            if (pomodoroTimeLeft <= 0) {
+                completePomodoro();
+            }
+        }, 1000);
+    }
+    
+    function pausePomodoro() {
+        pomodoroRunning = false;
+        clearInterval(pomodoroTimer);
+        
+        const startBtn = document.getElementById('startPomodoroBtn');
+        startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
+        startBtn.classList.remove('pause');
+    }
+    
+    async function completePomodoro() {
+        clearInterval(pomodoroTimer);
+        pomodoroRunning = false;
+        
+        // Play completion sound (optional)
+        playCompletionSound();
+        
+        // Mark as completed in backend
+        if (currentPomodoroId) {
+            try {
+                const response = await fetch(`/api/pomodoro/complete/${currentPomodoroId}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(data.message);
+                    loadPomodoroStatistics();
+                }
+            } catch (error) {
+                console.error('Error completing pomodoro:', error);
+            }
+        }
+        
+        currentPomodoroId = null;
+        
+        // Determine next session type
+        if (pomodoroType === 'work') {
+            pomodorosCompleted++;
+            if (pomodorosCompleted % 4 === 0) {
+                switchToBreak('long_break', 15);
+            } else {
+                switchToBreak('short_break', 5);
+            }
+        } else {
+            switchToBreak('work', 25);
+        }
+        
+        const startBtn = document.getElementById('startPomodoroBtn');
+        startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
+        startBtn.classList.remove('pause');
+    }
+    
+    function switchToBreak(type, duration) {
+        pomodoroType = type;
+        pomodoroTimeLeft = duration * 60;
+        pomodoroTotalTime = duration * 60;
+        updateTimerDisplay();
+        
+        const labels = {
+            'work': 'Focus Time',
+            'short_break': 'Short Break',
+            'long_break': 'Long Break'
+        };
+        
+        document.getElementById('timerLabel').textContent = labels[type];
+        showNotification(`${labels[type]} is ready! ${type === 'work' ? 'Time to focus!' : 'Take a break!'}`);
+    }
+    
+    function resetPomodoro() {
+        clearInterval(pomodoroTimer);
+        pomodoroRunning = false;
+        currentPomodoroId = null;
+        pomodoroType = 'work';
+        pomodoroTimeLeft = 25 * 60;
+        pomodoroTotalTime = 25 * 60;
+        
+        updateTimerDisplay();
+        
+        const startBtn = document.getElementById('startPomodoroBtn');
+        startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
+        startBtn.classList.remove('pause');
+        document.getElementById('timerLabel').textContent = 'Focus Time';
+    }
+    
+    function updateTimerDisplay() {
+        const minutes = Math.floor(pomodoroTimeLeft / 60);
+        const seconds = pomodoroTimeLeft % 60;
+        const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        document.getElementById('timerTime').textContent = timeString;
+        
+        // Update progress circle
+        const progress = ((pomodoroTotalTime - pomodoroTimeLeft) / pomodoroTotalTime) * 565.48;
+        document.getElementById('timerProgress').style.strokeDashoffset = 565.48 - progress;
+    }
+    
+    function playCompletionSound() {
+        // Create simple beep sound
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+    }
+    
+    function showNotification(message) {
+        // Show browser notification if permission granted
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Pomodoro Timer', {
+                body: message,
+                icon: '/static/favicon.ico'
+            });
+        }
+        
+        // Also show in-app notification
+        alert(message);
+    }
+    
+    function showPomodoroStats() {
+        // TODO: Create modal with detailed statistics
+        window.location.href = '/analytics';
+    }
+    
+    function showPomodoroSettings() {
+        // TODO: Create settings modal for Pomodoro preferences
+        const workDuration = prompt('Work duration (minutes):', '25');
+        const shortBreak = prompt('Short break duration (minutes):', '5');
+        const longBreak = prompt('Long break duration (minutes):', '15');
+        
+        if (workDuration && shortBreak && longBreak) {
+            fetch('/api/pomodoro/preferences', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    work_duration: parseInt(workDuration),
+                    short_break_duration: parseInt(shortBreak),
+                    long_break_duration: parseInt(longBreak)
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Settings saved!');
+                    loadPomodoroPreferences();
+                }
+            });
+        }
+    }
+    
+    // Initialize on page load
+    {% if user_has_rsvp or is_creator %}
+    loadPomodoroPreferences();
+    loadPomodoroStatistics();
+    
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+    {% endif %}
     </script>
 
     {% if is_creator %}

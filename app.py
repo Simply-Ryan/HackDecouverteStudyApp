@@ -1374,6 +1374,447 @@ def delete_file(file_id):
     return redirect(url_for('detail', session_id=session_id))
 
 # ============================================
+# ADVANCED FILE MANAGEMENT
+# ============================================
+
+@app.route('/api/files/categories', methods=['GET'])
+@login_required
+def get_file_categories():
+    """Get all file categories"""
+    conn = get_db()
+    categories = conn.execute('SELECT * FROM file_categories ORDER BY name').fetchall()
+    conn.close()
+    return jsonify({
+        'success': True,
+        'categories': [dict(cat) for cat in categories]
+    })
+
+@app.route('/api/files/categories', methods=['POST'])
+@login_required
+def create_file_category():
+    """Create a new file category"""
+    data = request.get_json()
+    name = data.get('name')
+    icon = data.get('icon', 'fa-file')
+    color = data.get('color', '#667eea')
+    
+    if not name:
+        return jsonify({'success': False, 'error': 'Category name is required'}), 400
+    
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            'INSERT INTO file_categories (name, icon, color) VALUES (?, ?, ?)',
+            (name, icon, color)
+        )
+        conn.commit()
+        category_id = cursor.lastrowid
+        conn.close()
+        return jsonify({
+            'success': True,
+            'category': {'id': category_id, 'name': name, 'icon': icon, 'color': color}
+        })
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Category already exists'}), 400
+
+@app.route('/api/files/tags', methods=['GET'])
+@login_required
+def get_file_tags():
+    """Get all file tags"""
+    conn = get_db()
+    tags = conn.execute('SELECT * FROM file_tags ORDER BY name').fetchall()
+    conn.close()
+    return jsonify({
+        'success': True,
+        'tags': [dict(tag) for tag in tags]
+    })
+
+@app.route('/api/files/tags', methods=['POST'])
+@login_required
+def create_file_tag():
+    """Create a new file tag"""
+    data = request.get_json()
+    name = data.get('name')
+    color = data.get('color', '#667eea')
+    
+    if not name:
+        return jsonify({'success': False, 'error': 'Tag name is required'}), 400
+    
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            'INSERT INTO file_tags (name, color) VALUES (?, ?)',
+            (name, color)
+        )
+        conn.commit()
+        tag_id = cursor.lastrowid
+        conn.close()
+        return jsonify({
+            'success': True,
+            'tag': {'id': tag_id, 'name': name, 'color': color}
+        })
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Tag already exists'}), 400
+
+@app.route('/api/files/<int:file_id>/categorize', methods=['POST'])
+@login_required
+def categorize_file(file_id):
+    """Assign a category to a file"""
+    data = request.get_json()
+    category_id = data.get('category_id')
+    
+    conn = get_db()
+    file_record = conn.execute('SELECT * FROM files WHERE id = ?', (file_id,)).fetchone()
+    
+    if not file_record:
+        conn.close()
+        return jsonify({'success': False, 'error': 'File not found'}), 404
+    
+    # Check if user has access to the session
+    session_id = file_record['session_id']
+    rsvp = conn.execute('SELECT id FROM rsvps WHERE session_id = ? AND user_id = ?',
+                       (session_id, session['user_id'])).fetchone()
+    
+    if not rsvp:
+        conn.close()
+        return jsonify({'success': False, 'error': 'No access to this session'}), 403
+    
+    conn.execute('UPDATE files SET category_id = ? WHERE id = ?', (category_id, file_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'File categorized successfully'})
+
+@app.route('/api/files/<int:file_id>/tag', methods=['POST'])
+@login_required
+def tag_file(file_id):
+    """Add tags to a file"""
+    data = request.get_json()
+    tag_ids = data.get('tag_ids', [])
+    
+    conn = get_db()
+    file_record = conn.execute('SELECT * FROM files WHERE id = ?', (file_id,)).fetchone()
+    
+    if not file_record:
+        conn.close()
+        return jsonify({'success': False, 'error': 'File not found'}), 404
+    
+    # Check if user has access to the session
+    session_id = file_record['session_id']
+    rsvp = conn.execute('SELECT id FROM rsvps WHERE session_id = ? AND user_id = ?',
+                       (session_id, session['user_id'])).fetchone()
+    
+    if not rsvp:
+        conn.close()
+        return jsonify({'success': False, 'error': 'No access to this session'}), 403
+    
+    # Remove existing tags and add new ones
+    conn.execute('DELETE FROM file_tag_relationships WHERE file_id = ?', (file_id,))
+    for tag_id in tag_ids:
+        conn.execute(
+            'INSERT OR IGNORE INTO file_tag_relationships (file_id, tag_id) VALUES (?, ?)',
+            (file_id, tag_id)
+        )
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'File tagged successfully'})
+
+@app.route('/api/files/<int:file_id>/favorite', methods=['POST'])
+@login_required
+def toggle_file_favorite(file_id):
+    """Toggle favorite status for a file"""
+    conn = get_db()
+    user_id = session['user_id']
+    
+    # Check if already favorited
+    existing = conn.execute(
+        'SELECT id FROM file_favorites WHERE file_id = ? AND user_id = ?',
+        (file_id, user_id)
+    ).fetchone()
+    
+    if existing:
+        conn.execute('DELETE FROM file_favorites WHERE file_id = ? AND user_id = ?', 
+                    (file_id, user_id))
+        is_favorite = False
+    else:
+        conn.execute('INSERT INTO file_favorites (file_id, user_id) VALUES (?, ?)',
+                    (file_id, user_id))
+        is_favorite = True
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'is_favorite': is_favorite,
+        'message': 'Added to favorites' if is_favorite else 'Removed from favorites'
+    })
+
+@app.route('/api/files/folders', methods=['GET'])
+@login_required
+def get_folders():
+    """Get folders for a session"""
+    session_id = request.args.get('session_id', type=int)
+    
+    if not session_id:
+        return jsonify({'success': False, 'error': 'Session ID required'}), 400
+    
+    conn = get_db()
+    folders = conn.execute('''
+        SELECT f.*, u.full_name as creator_name
+        FROM file_folders f
+        JOIN users u ON f.created_by = u.id
+        WHERE f.session_id = ?
+        ORDER BY f.name
+    ''', (session_id,)).fetchall()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'folders': [dict(folder) for folder in folders]
+    })
+
+@app.route('/api/files/folders', methods=['POST'])
+@login_required
+def create_folder():
+    """Create a new folder"""
+    data = request.get_json()
+    session_id = data.get('session_id')
+    name = data.get('name')
+    parent_folder_id = data.get('parent_folder_id')
+    
+    if not session_id or not name:
+        return jsonify({'success': False, 'error': 'Session ID and name required'}), 400
+    
+    conn = get_db()
+    cursor = conn.execute(
+        'INSERT INTO file_folders (session_id, name, parent_folder_id, created_by) VALUES (?, ?, ?, ?)',
+        (session_id, name, parent_folder_id, session['user_id'])
+    )
+    folder_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'folder': {'id': folder_id, 'name': name, 'session_id': session_id}
+    })
+
+@app.route('/api/files/<int:file_id>/move', methods=['POST'])
+@login_required
+def move_file_to_folder(file_id):
+    """Move a file to a folder"""
+    data = request.get_json()
+    folder_id = data.get('folder_id')
+    
+    conn = get_db()
+    conn.execute('UPDATE files SET folder_id = ? WHERE id = ?', (folder_id, file_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'File moved successfully'})
+
+@app.route('/api/files/bulk-download', methods=['POST'])
+@login_required
+def bulk_download_files():
+    """Download multiple files as a ZIP"""
+    import zipfile
+    from io import BytesIO
+    
+    data = request.get_json()
+    file_ids = data.get('file_ids', [])
+    
+    if not file_ids:
+        return jsonify({'success': False, 'error': 'No files selected'}), 400
+    
+    conn = get_db()
+    files = conn.execute(f'''
+        SELECT * FROM files WHERE id IN ({','.join('?' * len(file_ids))})
+    ''', file_ids).fetchall()
+    conn.close()
+    
+    # Create ZIP file in memory
+    memory_file = BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for file_record in files:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_record['filename'])
+            if os.path.exists(file_path):
+                zf.write(file_path, file_record['original_filename'])
+    
+    memory_file.seek(0)
+    
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name='files.zip'
+    )
+
+@app.route('/api/files/<int:file_id>/archive', methods=['POST'])
+@login_required
+def archive_file(file_id):
+    """Archive or unarchive a file"""
+    data = request.get_json()
+    is_archived = data.get('is_archived', 1)
+    
+    conn = get_db()
+    conn.execute('UPDATE files SET is_archived = ? WHERE id = ?', (is_archived, file_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': 'File archived' if is_archived else 'File restored'
+    })
+
+@app.route('/api/files/<int:file_id>/versions', methods=['GET'])
+@login_required
+def get_file_versions(file_id):
+    """Get version history for a file"""
+    conn = get_db()
+    versions = conn.execute('''
+        SELECT v.*, u.full_name as uploader_name
+        FROM file_versions v
+        JOIN users u ON v.uploaded_by = u.id
+        WHERE v.file_id = ?
+        ORDER BY v.version_number DESC
+    ''', (file_id,)).fetchall()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'versions': [dict(v) for v in versions]
+    })
+
+@app.route('/api/files/<int:file_id>/upload-version', methods=['POST'])
+@login_required
+def upload_file_version(file_id):
+    """Upload a new version of an existing file"""
+    conn = get_db()
+    file_record = conn.execute('SELECT * FROM files WHERE id = ?', (file_id,)).fetchone()
+    
+    if not file_record:
+        conn.close()
+        return jsonify({'success': False, 'error': 'File not found'}), 404
+    
+    if 'file' not in request.files:
+        conn.close()
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    change_description = request.form.get('change_description', '')
+    
+    if file.filename == '':
+        conn.close()
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    
+    if file and allowed_file(file.filename):
+        # Save new version with timestamp
+        original_filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{timestamp}_{original_filename}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        
+        # Get current version number
+        current_version = file_record['version'] or 1
+        new_version = current_version + 1
+        
+        # Save old version to file_versions table
+        conn.execute('''
+            INSERT INTO file_versions 
+            (file_id, version_number, filename, file_size, uploaded_by, change_description)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (file_id, current_version, file_record['filename'], 
+              file_record['file_size'], file_record['user_id'], 'Previous version'))
+        
+        # Update files table with new version
+        file_size = os.path.getsize(file_path)
+        conn.execute('''
+            UPDATE files 
+            SET filename = ?, original_filename = ?, file_size = ?, 
+                version = ?, user_id = ?, uploaded_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (filename, original_filename, file_size, new_version, session['user_id'], file_id))
+        
+        # Save new version to file_versions
+        conn.execute('''
+            INSERT INTO file_versions 
+            (file_id, version_number, filename, file_size, uploaded_by, change_description)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (file_id, new_version, filename, file_size, session['user_id'], change_description))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Version {new_version} uploaded successfully',
+            'version': new_version
+        })
+    else:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Invalid file type'}), 400
+
+@app.route('/api/files/<int:file_id>/revert/<int:version_number>', methods=['POST'])
+@login_required
+def revert_file_version(file_id, version_number):
+    """Revert file to a previous version"""
+    conn = get_db()
+    
+    # Get the version to revert to
+    version = conn.execute('''
+        SELECT * FROM file_versions 
+        WHERE file_id = ? AND version_number = ?
+    ''', (file_id, version_number)).fetchone()
+    
+    if not version:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Version not found'}), 404
+    
+    # Get current file
+    file_record = conn.execute('SELECT * FROM files WHERE id = ?', (file_id,)).fetchone()
+    current_version = file_record['version'] or 1
+    new_version = current_version + 1
+    
+    # Save current version before reverting
+    conn.execute('''
+        INSERT INTO file_versions 
+        (file_id, version_number, filename, file_size, uploaded_by, change_description)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (file_id, current_version, file_record['filename'], 
+          file_record['file_size'], file_record['user_id'], 'Before revert'))
+    
+    # Update files table with reverted version
+    conn.execute('''
+        UPDATE files 
+        SET filename = ?, file_size = ?, version = ?, user_id = ?, 
+            uploaded_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (version['filename'], version['file_size'], new_version, 
+          session['user_id'], file_id))
+    
+    # Record the revert as a new version
+    conn.execute('''
+        INSERT INTO file_versions 
+        (file_id, version_number, filename, file_size, uploaded_by, change_description)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (file_id, new_version, version['filename'], version['file_size'], 
+          session['user_id'], f'Reverted to version {version_number}'))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Reverted to version {version_number}',
+        'version': new_version
+    })
+
+# ============================================
 # ANALYTICS DASHBOARD
 # ============================================
 
@@ -3458,6 +3899,242 @@ def handle_leave_whiteboard(data):
     }, room=room)
 
 # ============================================
+# POMODORO TIMER ROUTES
+# ============================================
+
+@app.route('/api/pomodoro/start', methods=['POST'])
+@login_required
+def start_pomodoro():
+    """Start a new Pomodoro session"""
+    data = request.get_json()
+    session_id = data.get('session_id')  # Optional - for group timers
+    timer_type = data.get('type', 'work')  # 'work', 'short_break', 'long_break'
+    duration = data.get('duration', 25)
+    
+    conn = get_db()
+    
+    # Insert new pomodoro session
+    cursor = conn.execute('''
+        INSERT INTO pomodoro_sessions (user_id, session_id, duration_minutes, type)
+        VALUES (?, ?, ?, ?)
+    ''', (session['user_id'], session_id, duration, timer_type))
+    
+    pomodoro_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    # Broadcast to session if it's a group timer
+    if session_id:
+        socketio.emit('pomodoro_started', {
+            'user_id': session['user_id'],
+            'username': session['full_name'],
+            'type': timer_type,
+            'duration': duration,
+            'pomodoro_id': pomodoro_id
+        }, room=f'session_{session_id}')
+    
+    return jsonify({
+        'success': True,
+        'pomodoro_id': pomodoro_id,
+        'message': f'{timer_type.replace("_", " ").title()} started!'
+    })
+
+@app.route('/api/pomodoro/complete/<int:pomodoro_id>', methods=['POST'])
+@login_required
+def complete_pomodoro(pomodoro_id):
+    """Mark a Pomodoro session as completed"""
+    conn = get_db()
+    
+    # Get pomodoro details
+    pomodoro = conn.execute('''
+        SELECT * FROM pomodoro_sessions WHERE id = ? AND user_id = ?
+    ''', (pomodoro_id, session['user_id'])).fetchone()
+    
+    if not pomodoro:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Pomodoro not found'}), 404
+    
+    # Update completion
+    conn.execute('''
+        UPDATE pomodoro_sessions
+        SET is_completed = 1, completed_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (pomodoro_id,))
+    
+    # Update focus statistics
+    today = datetime.now().date()
+    
+    if pomodoro['type'] == 'work':
+        conn.execute('''
+            INSERT INTO focus_statistics (user_id, date, total_focus_minutes, pomodoros_completed)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT(user_id, date) DO UPDATE SET
+                total_focus_minutes = total_focus_minutes + ?,
+                pomodoros_completed = pomodoros_completed + 1
+        ''', (session['user_id'], today, pomodoro['duration_minutes'], pomodoro['duration_minutes']))
+    else:
+        conn.execute('''
+            INSERT INTO focus_statistics (user_id, date, total_breaks_minutes)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, date) DO UPDATE SET
+                total_breaks_minutes = total_breaks_minutes + ?
+        ''', (session['user_id'], today, pomodoro['duration_minutes'], pomodoro['duration_minutes']))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Pomodoro completed! Great job! 🎉'
+    })
+
+@app.route('/api/pomodoro/statistics')
+@login_required
+def get_pomodoro_statistics():
+    """Get user's Pomodoro statistics"""
+    conn = get_db()
+    
+    # Get today's stats
+    today = datetime.now().date()
+    today_stats = conn.execute('''
+        SELECT * FROM focus_statistics WHERE user_id = ? AND date = ?
+    ''', (session['user_id'], today)).fetchone()
+    
+    # Get last 7 days
+    week_stats = conn.execute('''
+        SELECT * FROM focus_statistics 
+        WHERE user_id = ? AND date >= date('now', '-7 days')
+        ORDER BY date DESC
+    ''', (session['user_id'],)).fetchall()
+    
+    # Get all-time totals
+    all_time = conn.execute('''
+        SELECT 
+            SUM(total_focus_minutes) as total_focus,
+            SUM(pomodoros_completed) as total_pomodoros,
+            SUM(total_breaks_minutes) as total_breaks
+        FROM focus_statistics
+        WHERE user_id = ?
+    ''', (session['user_id'],)).fetchone()
+    
+    # Get current streak
+    streak = 0
+    check_date = datetime.now().date()
+    while True:
+        has_activity = conn.execute('''
+            SELECT 1 FROM focus_statistics 
+            WHERE user_id = ? AND date = ? AND pomodoros_completed > 0
+        ''', (session['user_id'], check_date)).fetchone()
+        
+        if not has_activity:
+            break
+        streak += 1
+        check_date = check_date - timedelta(days=1)
+    
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'today': {
+            'focus_minutes': today_stats['total_focus_minutes'] if today_stats else 0,
+            'pomodoros': today_stats['pomodoros_completed'] if today_stats else 0,
+            'breaks_minutes': today_stats['total_breaks_minutes'] if today_stats else 0
+        },
+        'week': [{
+            'date': stat['date'],
+            'focus_minutes': stat['total_focus_minutes'],
+            'pomodoros': stat['pomodoros_completed']
+        } for stat in week_stats],
+        'all_time': {
+            'total_focus': all_time['total_focus'] or 0,
+            'total_pomodoros': all_time['total_pomodoros'] or 0,
+            'total_breaks': all_time['total_breaks'] or 0
+        },
+        'streak': streak
+    })
+
+@app.route('/api/pomodoro/preferences', methods=['GET', 'POST'])
+@login_required
+def pomodoro_preferences():
+    """Get or update Pomodoro preferences"""
+    conn = get_db()
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        
+        # Update or create preferences
+        conn.execute('''
+            INSERT INTO pomodoro_preferences 
+            (user_id, work_duration, short_break_duration, long_break_duration,
+             auto_start_breaks, auto_start_pomodoros, dnd_mode, ambient_sound)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                work_duration = ?,
+                short_break_duration = ?,
+                long_break_duration = ?,
+                auto_start_breaks = ?,
+                auto_start_pomodoros = ?,
+                dnd_mode = ?,
+                ambient_sound = ?
+        ''', (
+            session['user_id'],
+            data.get('work_duration', 25),
+            data.get('short_break_duration', 5),
+            data.get('long_break_duration', 15),
+            1 if data.get('auto_start_breaks') else 0,
+            1 if data.get('auto_start_pomodoros') else 0,
+            1 if data.get('dnd_mode') else 0,
+            data.get('ambient_sound', 'none'),
+            # For UPDATE clause
+            data.get('work_duration', 25),
+            data.get('short_break_duration', 5),
+            data.get('long_break_duration', 15),
+            1 if data.get('auto_start_breaks') else 0,
+            1 if data.get('auto_start_pomodoros') else 0,
+            1 if data.get('dnd_mode') else 0,
+            data.get('ambient_sound', 'none')
+        ))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Preferences saved'})
+    
+    # GET request
+    prefs = conn.execute('''
+        SELECT * FROM pomodoro_preferences WHERE user_id = ?
+    ''', (session['user_id'],)).fetchone()
+    
+    conn.close()
+    
+    if prefs:
+        return jsonify({
+            'success': True,
+            'preferences': {
+                'work_duration': prefs['work_duration'],
+                'short_break_duration': prefs['short_break_duration'],
+                'long_break_duration': prefs['long_break_duration'],
+                'auto_start_breaks': bool(prefs['auto_start_breaks']),
+                'auto_start_pomodoros': bool(prefs['auto_start_pomodoros']),
+                'dnd_mode': bool(prefs['dnd_mode']),
+                'ambient_sound': prefs['ambient_sound']
+            }
+        })
+    else:
+        # Return defaults
+        return jsonify({
+            'success': True,
+            'preferences': {
+                'work_duration': 25,
+                'short_break_duration': 5,
+                'long_break_duration': 15,
+                'auto_start_breaks': False,
+                'auto_start_pomodoros': False,
+                'dnd_mode': True,
+                'ambient_sound': 'none'
+            }
+        })
+
+# ============================================
 # VIDEO/AUDIO CALL ROUTES
 # ============================================
 
@@ -3636,6 +4313,147 @@ def call_history(session_id):
     })
 
 # ============================================
+# WHITEBOARD ROUTES
+# ============================================
+
+@app.route('/whiteboard/<int:session_id>')
+@login_required
+def whiteboard(session_id):
+    """Collaborative whiteboard for a study session"""
+    conn = get_db()
+    
+    # Verify session exists and user has access
+    study_session = conn.execute('SELECT * FROM sessions WHERE id = ?', (session_id,)).fetchone()
+    if not study_session:
+        flash('Session not found', 'error')
+        conn.close()
+        return redirect(url_for('home'))
+    
+    # Check if user is participant or creator
+    is_creator = study_session['creator_id'] == session['user_id']
+    has_rsvp = conn.execute('SELECT * FROM rsvps WHERE session_id = ? AND user_id = ?',
+                            (session_id, session['user_id'])).fetchone() is not None
+    
+    if not is_creator and not has_rsvp:
+        flash('You must RSVP to access the whiteboard', 'error')
+        conn.close()
+        return redirect(url_for('detail', session_id=session_id))
+    
+    # Get or create whiteboard for this session
+    whiteboard = conn.execute('SELECT * FROM whiteboards WHERE session_id = ?', (session_id,)).fetchone()
+    
+    if not whiteboard:
+        # Create new whiteboard
+        conn.execute('''
+            INSERT INTO whiteboards (session_id, title, created_by)
+            VALUES (?, ?, ?)
+        ''', (session_id, f"{study_session['title']} - Whiteboard", session['user_id']))
+        conn.commit()
+        whiteboard = conn.execute('SELECT * FROM whiteboards WHERE session_id = ?', (session_id,)).fetchone()
+    
+    conn.close()
+    
+    return render_template('whiteboard.html', 
+                         study_session=study_session, 
+                         whiteboard=whiteboard,
+                         session_id=session_id)
+
+@app.route('/api/whiteboard/load/<int:session_id>')
+@login_required
+def load_whiteboard(session_id):
+    """Load whiteboard data for a session"""
+    conn = get_db()
+    
+    # Get whiteboard
+    whiteboard = conn.execute('SELECT * FROM whiteboards WHERE session_id = ?', (session_id,)).fetchone()
+    
+    if not whiteboard:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Whiteboard not found'})
+    
+    # Get latest whiteboard data
+    whiteboard_data = conn.execute('''
+        SELECT * FROM whiteboard_data 
+        WHERE whiteboard_id = ? 
+        ORDER BY version DESC 
+        LIMIT 1
+    ''', (whiteboard['id'],)).fetchone()
+    
+    conn.close()
+    
+    if whiteboard_data:
+        return jsonify({
+            'success': True,
+            'data': whiteboard_data['data_json'],
+            'version': whiteboard_data['version'],
+            'saved_at': whiteboard_data['saved_at']
+        })
+    else:
+        return jsonify({
+            'success': True,
+            'data': '[]',  # Empty canvas
+            'version': 0
+        })
+
+@app.route('/api/whiteboard/save', methods=['POST'])
+@login_required
+def save_whiteboard():
+    """Save whiteboard data"""
+    data = request.get_json()
+    session_id = data.get('session_id')
+    canvas_data = data.get('data')
+    
+    if not session_id or canvas_data is None:
+        return jsonify({'success': False, 'message': 'Missing required fields'})
+    
+    conn = get_db()
+    
+    # Get whiteboard
+    whiteboard = conn.execute('SELECT * FROM whiteboards WHERE session_id = ?', (session_id,)).fetchone()
+    
+    if not whiteboard:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Whiteboard not found'})
+    
+    # Get current version
+    current_version = conn.execute('''
+        SELECT MAX(version) as max_version 
+        FROM whiteboard_data 
+        WHERE whiteboard_id = ?
+    ''', (whiteboard['id'],)).fetchone()
+    
+    next_version = (current_version['max_version'] or 0) + 1
+    
+    # Save new version
+    conn.execute('''
+        INSERT INTO whiteboard_data (whiteboard_id, data_json, version, saved_by)
+        VALUES (?, ?, ?, ?)
+    ''', (whiteboard['id'], canvas_data, next_version, session['user_id']))
+    
+    # Update whiteboard updated_at
+    conn.execute('''
+        UPDATE whiteboards 
+        SET updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    ''', (whiteboard['id'],))
+    
+    conn.commit()
+    conn.close()
+    
+    # Broadcast update via WebSocket
+    socketio.emit('whiteboard_updated', {
+        'session_id': session_id,
+        'user_id': session['user_id'],
+        'version': next_version
+    }, room=f'whiteboard_{session_id}')
+    
+    return jsonify({
+        'success': True,
+        'version': next_version,
+        'message': 'Whiteboard saved successfully'
+    })
+
+# ============================================
 # WEBRTC SIGNALING SOCKET.IO HANDLERS
 # ============================================
 
@@ -3760,6 +4578,77 @@ def handle_leave_call_socket(data):
     }, room=room)
     
     print(f"User {username} left call {call_session_id}")
+
+# ============================================
+# WHITEBOARD SOCKET.IO HANDLERS
+# ============================================
+
+@socketio.on('join_whiteboard')
+def handle_join_whiteboard(data):
+    """User joins a whiteboard room"""
+    session_id = data.get('session_id')
+    user_id = data.get('user_id')
+    username = data.get('username', 'Anonymous')
+    
+    room = f'whiteboard_{session_id}'
+    join_room(room)
+    
+    emit('user_joined_whiteboard', {
+        'user_id': user_id,
+        'username': username
+    }, room=room, include_self=False)
+    
+    print(f"User {username} joined whiteboard for session {session_id}")
+
+@socketio.on('leave_whiteboard')
+def handle_leave_whiteboard(data):
+    """User leaves whiteboard room"""
+    session_id = data.get('session_id')
+    user_id = data.get('user_id')
+    username = data.get('username', 'Anonymous')
+    
+    room = f'whiteboard_{session_id}'
+    leave_room(room)
+    
+    emit('user_left_whiteboard', {
+        'user_id': user_id,
+        'username': username
+    }, room=room)
+    
+    print(f"User {username} left whiteboard for session {session_id}")
+
+@socketio.on('whiteboard_draw')
+def handle_whiteboard_draw(data):
+    """Broadcast drawing actions to other users in real-time"""
+    session_id = data.get('session_id')
+    draw_data = data.get('draw_data')
+    user_id = data.get('user_id')
+    
+    room = f'whiteboard_{session_id}'
+    
+    # Broadcast to others in the room
+    emit('whiteboard_draw', {
+        'user_id': user_id,
+        'draw_data': draw_data
+    }, room=room, skip_sid=request.sid)
+
+@socketio.on('whiteboard_cursor')
+def handle_whiteboard_cursor(data):
+    """Broadcast cursor position to other users"""
+    session_id = data.get('session_id')
+    user_id = data.get('user_id')
+    username = data.get('username', 'Anonymous')
+    x = data.get('x')
+    y = data.get('y')
+    
+    room = f'whiteboard_{session_id}'
+    
+    emit('whiteboard_cursor', {
+        'user_id': user_id,
+        'username': username,
+        'x': x,
+        'y': y
+    }, room=room, skip_sid=request.sid)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)

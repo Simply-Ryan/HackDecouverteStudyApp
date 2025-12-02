@@ -272,3 +272,153 @@ CREATE TABLE IF NOT EXISTS call_participants (
     FOREIGN KEY (call_session_id) REFERENCES call_sessions(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+-- Whiteboard tables
+CREATE TABLE IF NOT EXISTS whiteboards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    title TEXT DEFAULT 'Untitled Whiteboard',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS whiteboard_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    whiteboard_id INTEGER NOT NULL,
+    data_json TEXT NOT NULL,
+    version INTEGER DEFAULT 1,
+    saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    saved_by INTEGER NOT NULL,
+    FOREIGN KEY (whiteboard_id) REFERENCES whiteboards(id) ON DELETE CASCADE,
+    FOREIGN KEY (saved_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Whiteboard indexes
+CREATE INDEX IF NOT EXISTS idx_whiteboards_session ON whiteboards(session_id);
+CREATE INDEX IF NOT EXISTS idx_whiteboard_data_whiteboard ON whiteboard_data(whiteboard_id);
+CREATE INDEX IF NOT EXISTS idx_whiteboard_data_version ON whiteboard_data(whiteboard_id, version DESC);
+
+-- Pomodoro timer tables
+CREATE TABLE IF NOT EXISTS pomodoro_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    session_id INTEGER,
+    duration_minutes INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    is_completed INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS focus_statistics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    date DATE NOT NULL,
+    total_focus_minutes INTEGER DEFAULT 0,
+    pomodoros_completed INTEGER DEFAULT 0,
+    total_breaks_minutes INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS pomodoro_preferences (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    work_duration INTEGER DEFAULT 25,
+    short_break_duration INTEGER DEFAULT 5,
+    long_break_duration INTEGER DEFAULT 15,
+    auto_start_breaks INTEGER DEFAULT 0,
+    auto_start_pomodoros INTEGER DEFAULT 0,
+    dnd_mode INTEGER DEFAULT 1,
+    ambient_sound TEXT DEFAULT 'none',
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Pomodoro indexes
+CREATE INDEX IF NOT EXISTS idx_pomodoro_sessions_user ON pomodoro_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_pomodoro_sessions_session ON pomodoro_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_focus_statistics_user_date ON focus_statistics(user_id, date);
+
+-- Advanced File Management Tables
+CREATE TABLE IF NOT EXISTS file_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    icon TEXT DEFAULT 'fa-file',
+    color TEXT DEFAULT '#667eea',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO file_categories (name, icon, color) VALUES
+    ('Notes', 'fa-sticky-note', '#10b981'),
+    ('Slides', 'fa-presentation', '#f59e0b'),
+    ('Assignments', 'fa-tasks', '#ef4444'),
+    ('Resources', 'fa-book', '#667eea'),
+    ('Code', 'fa-code', '#8b5cf6'),
+    ('Other', 'fa-file', '#6b7280');
+
+CREATE TABLE IF NOT EXISTS file_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    color TEXT DEFAULT '#667eea',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS file_folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    parent_folder_id INTEGER,
+    created_by INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_folder_id) REFERENCES file_folders(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS file_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER NOT NULL,
+    version_number INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    uploaded_by INTEGER NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    change_description TEXT,
+    FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS file_tag_relationships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES file_tags(id) ON DELETE CASCADE,
+    UNIQUE(file_id, tag_id)
+);
+
+CREATE TABLE IF NOT EXISTS file_favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(file_id, user_id)
+);
+
+-- File management indexes
+CREATE INDEX IF NOT EXISTS idx_files_category ON files(category_id);
+CREATE INDEX IF NOT EXISTS idx_files_folder ON files(folder_id);
+CREATE INDEX IF NOT EXISTS idx_file_folders_session ON file_folders(session_id);
+CREATE INDEX IF NOT EXISTS idx_file_folders_parent ON file_folders(parent_folder_id);
+CREATE INDEX IF NOT EXISTS idx_file_versions_file ON file_versions(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_tag_rel_file ON file_tag_relationships(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_tag_rel_tag ON file_tag_relationships(tag_id);
+CREATE INDEX IF NOT EXISTS idx_file_favorites_user ON file_favorites(user_id);
