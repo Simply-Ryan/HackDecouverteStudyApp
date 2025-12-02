@@ -244,3 +244,29 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS call_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    call_type TEXT NOT NULL, -- 'audio', 'video'
+    started_by INTEGER NOT NULL,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP,
+    duration INTEGER, -- in seconds
+    participant_count INTEGER DEFAULT 1,
+    quality_rating INTEGER, -- 1-5 rating
+    notes TEXT,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (started_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS call_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    call_session_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    left_at TIMESTAMP,
+    duration INTEGER, -- in seconds
+    FOREIGN KEY (call_session_id) REFERENCES call_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);

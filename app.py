@@ -3315,5 +3315,309 @@ def handle_leave_whiteboard(data):
         'message': f'{username} left the whiteboard'
     }, room=room)
 
+# ============================================
+# VIDEO/AUDIO CALL ROUTES
+# ============================================
+
+@app.route('/call/<int:session_id>')
+@login_required
+def video_call(session_id):
+    """Video/audio call interface for a session"""
+    conn = get_db()
+    
+    # Check if user has access to session
+    session_access = conn.execute('''
+        SELECT s.id, s.title, s.session_type
+        FROM sessions s
+        LEFT JOIN rsvps r ON s.id = r.session_id
+        WHERE s.id = ? AND (s.creator_id = ? OR r.user_id = ?)
+    ''', (session_id, session['user_id'], session['user_id'])).fetchone()
+    
+    if not session_access:
+        conn.close()
+        flash('Access denied to this session')
+        return redirect(url_for('index'))
+    
+    # Get or create active call session
+    active_call = conn.execute('''
+        SELECT * FROM call_sessions 
+        WHERE session_id = ? AND ended_at IS NULL
+        ORDER BY started_at DESC LIMIT 1
+    ''', (session_id,)).fetchone()
+    
+    if not active_call:
+        # Create new call session
+        cursor = conn.execute('''
+            INSERT INTO call_sessions (session_id, call_type, started_by)
+            VALUES (?, ?, ?)
+        ''', (session_id, 'video', session['user_id']))
+        call_session_id = cursor.lastrowid
+        conn.commit()
+        
+        # Add creator as participant
+        conn.execute('''
+            INSERT INTO call_participants (call_session_id, user_id)
+            VALUES (?, ?)
+        ''', (call_session_id, session['user_id']))
+        conn.commit()
+    else:
+        call_session_id = active_call['id']
+        
+        # Check if user already in call
+        existing_participant = conn.execute('''
+            SELECT id FROM call_participants
+            WHERE call_session_id = ? AND user_id = ? AND left_at IS NULL
+        ''', (call_session_id, session['user_id'])).fetchone()
+        
+        if not existing_participant:
+            # Add user as participant
+            conn.execute('''
+                INSERT INTO call_participants (call_session_id, user_id)
+                VALUES (?, ?)
+            ''', (call_session_id, session['user_id']))
+            conn.commit()
+    
+    # Get all participants in the call
+    participants = conn.execute('''
+        SELECT cp.*, u.full_name, u.username
+        FROM call_participants cp
+        JOIN users u ON cp.user_id = u.id
+        WHERE cp.call_session_id = ? AND cp.left_at IS NULL
+    ''', (call_session_id,)).fetchall()
+    
+    conn.close()
+    
+    return render_template('video_call.html',
+                         session_id=session_id,
+                         session_title=session_access['title'],
+                         call_session_id=call_session_id,
+                         participants=participants,
+                         user_id=session['user_id'],
+                         username=session.get('full_name', 'Anonymous'))
+
+@app.route('/call/<int:call_session_id>/end', methods=['POST'])
+@login_required
+def end_call(call_session_id):
+    """End a call session"""
+    conn = get_db()
+    
+    call = conn.execute('SELECT * FROM call_sessions WHERE id = ?', (call_session_id,)).fetchone()
+    
+    if not call:
+        conn.close()
+        return jsonify({'error': 'Call not found'}), 404
+    
+    # Calculate duration
+    started_at = datetime.strptime(call['started_at'], '%Y-%m-%d %H:%M:%S')
+    duration = int((datetime.now() - started_at).total_seconds())
+    
+    # Update call session
+    conn.execute('''
+        UPDATE call_sessions
+        SET ended_at = CURRENT_TIMESTAMP, duration = ?
+        WHERE id = ?
+    ''', (duration, call_session_id))
+    
+    # Update all active participants
+    conn.execute('''
+        UPDATE call_participants
+        SET left_at = CURRENT_TIMESTAMP,
+            duration = CAST((julianday(CURRENT_TIMESTAMP) - julianday(joined_at)) * 86400 AS INTEGER)
+        WHERE call_session_id = ? AND left_at IS NULL
+    ''', (call_session_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    # Notify all participants via WebSocket
+    socketio.emit('call_ended', {
+        'call_session_id': call_session_id,
+        'message': 'Call has ended'
+    }, room=f'call_{call_session_id}')
+    
+    return jsonify({'success': True, 'duration': duration})
+
+@app.route('/call/<int:call_session_id>/leave', methods=['POST'])
+@login_required
+def leave_call(call_session_id):
+    """Leave a call session"""
+    conn = get_db()
+    
+    participant = conn.execute('''
+        SELECT * FROM call_participants
+        WHERE call_session_id = ? AND user_id = ? AND left_at IS NULL
+    ''', (call_session_id, session['user_id'])).fetchone()
+    
+    if participant:
+        # Calculate participant duration
+        joined_at = datetime.strptime(participant['joined_at'], '%Y-%m-%d %H:%M:%S')
+        duration = int((datetime.now() - joined_at).total_seconds())
+        
+        conn.execute('''
+            UPDATE call_participants
+            SET left_at = CURRENT_TIMESTAMP, duration = ?
+            WHERE id = ?
+        ''', (duration, participant['id']))
+        conn.commit()
+    
+    conn.close()
+    
+    return jsonify({'success': True})
+
+@app.route('/session/<int:session_id>/call-history')
+@login_required
+def call_history(session_id):
+    """Get call history for a session"""
+    conn = get_db()
+    
+    calls = conn.execute('''
+        SELECT cs.*, u.full_name as started_by_name,
+               (SELECT COUNT(*) FROM call_participants WHERE call_session_id = cs.id) as participant_count
+        FROM call_sessions cs
+        JOIN users u ON cs.started_by = u.id
+        WHERE cs.session_id = ?
+        ORDER BY cs.started_at DESC
+    ''', (session_id,)).fetchall()
+    
+    conn.close()
+    
+    return jsonify({
+        'calls': [{
+            'id': c['id'],
+            'call_type': c['call_type'],
+            'started_by': c['started_by_name'],
+            'started_at': c['started_at'],
+            'ended_at': c['ended_at'],
+            'duration': c['duration'],
+            'participant_count': c['participant_count']
+        } for c in calls]
+    })
+
+# ============================================
+# WEBRTC SIGNALING SOCKET.IO HANDLERS
+# ============================================
+
+@socketio.on('join_call')
+def handle_join_call(data):
+    """User joins a call room"""
+    call_session_id = data.get('call_session_id')
+    user_id = data.get('user_id')
+    username = data.get('username', 'Anonymous')
+    
+    room = f'call_{call_session_id}'
+    join_room(room)
+    
+    # Notify others that a new user joined
+    emit('user_joined_call', {
+        'user_id': user_id,
+        'username': username,
+        'message': f'{username} joined the call'
+    }, room=room, include_self=False)
+    
+    print(f"User {username} (ID: {user_id}) joined call {call_session_id}")
+
+@socketio.on('webrtc_offer')
+def handle_webrtc_offer(data):
+    """Forward WebRTC offer to target peer"""
+    target_user_id = data.get('target_user_id')
+    offer = data.get('offer')
+    sender_user_id = data.get('sender_user_id')
+    call_session_id = data.get('call_session_id')
+    
+    # Emit to specific user in the call room
+    emit('webrtc_offer', {
+        'offer': offer,
+        'sender_user_id': sender_user_id
+    }, room=f'call_{call_session_id}', skip_sid=request.sid)
+
+@socketio.on('webrtc_answer')
+def handle_webrtc_answer(data):
+    """Forward WebRTC answer to target peer"""
+    target_user_id = data.get('target_user_id')
+    answer = data.get('answer')
+    sender_user_id = data.get('sender_user_id')
+    call_session_id = data.get('call_session_id')
+    
+    emit('webrtc_answer', {
+        'answer': answer,
+        'sender_user_id': sender_user_id
+    }, room=f'call_{call_session_id}', skip_sid=request.sid)
+
+@socketio.on('webrtc_ice_candidate')
+def handle_ice_candidate(data):
+    """Forward ICE candidate to target peer"""
+    candidate = data.get('candidate')
+    sender_user_id = data.get('sender_user_id')
+    call_session_id = data.get('call_session_id')
+    
+    emit('webrtc_ice_candidate', {
+        'candidate': candidate,
+        'sender_user_id': sender_user_id
+    }, room=f'call_{call_session_id}', skip_sid=request.sid)
+
+@socketio.on('toggle_audio')
+def handle_toggle_audio(data):
+    """Broadcast audio toggle status"""
+    call_session_id = data.get('call_session_id')
+    user_id = data.get('user_id')
+    is_muted = data.get('is_muted')
+    
+    emit('user_audio_toggled', {
+        'user_id': user_id,
+        'is_muted': is_muted
+    }, room=f'call_{call_session_id}', include_self=False)
+
+@socketio.on('toggle_video')
+def handle_toggle_video(data):
+    """Broadcast video toggle status"""
+    call_session_id = data.get('call_session_id')
+    user_id = data.get('user_id')
+    is_video_off = data.get('is_video_off')
+    
+    emit('user_video_toggled', {
+        'user_id': user_id,
+        'is_video_off': is_video_off
+    }, room=f'call_{call_session_id}', include_self=False)
+
+@socketio.on('screen_share_started')
+def handle_screen_share_started(data):
+    """Notify others that screen sharing started"""
+    call_session_id = data.get('call_session_id')
+    user_id = data.get('user_id')
+    username = data.get('username')
+    
+    emit('user_screen_share_started', {
+        'user_id': user_id,
+        'username': username
+    }, room=f'call_{call_session_id}', include_self=False)
+
+@socketio.on('screen_share_stopped')
+def handle_screen_share_stopped(data):
+    """Notify others that screen sharing stopped"""
+    call_session_id = data.get('call_session_id')
+    user_id = data.get('user_id')
+    
+    emit('user_screen_share_stopped', {
+        'user_id': user_id
+    }, room=f'call_{call_session_id}', include_self=False)
+
+@socketio.on('leave_call')
+def handle_leave_call_socket(data):
+    """User leaves call room"""
+    call_session_id = data.get('call_session_id')
+    user_id = data.get('user_id')
+    username = data.get('username', 'Anonymous')
+    
+    room = f'call_{call_session_id}'
+    leave_room(room)
+    
+    emit('user_left_call', {
+        'user_id': user_id,
+        'username': username,
+        'message': f'{username} left the call'
+    }, room=room)
+    
+    print(f"User {username} left call {call_session_id}")
+
 if __name__ == '__main__':
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
