@@ -48,6 +48,7 @@ if Config.OPENAI_API_KEY and Config.AI_ENABLED:
         print("✅ AI Assistant enabled with OpenAI")
     except Exception as e:
         print(f"⚠️ AI Assistant initialization failed: {e}")
+        print("ℹ️ AI features will be disabled. Check your OPENAI_API_KEY if you want to enable them.")
 else:
     print("ℹ️ AI Assistant disabled. Set OPENAI_API_KEY and AI_ENABLED=true to enable.")
 
