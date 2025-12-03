@@ -7,13 +7,22 @@
 # the application with a .env file for secure configuration.
 #
 # Author: StudyFlow Team
-# Version: 1.0.0
+# Version: 1.1.0
 # Date: December 2025
 #
 # Requirements:
 # - Python 3.8 or higher
 # - pip (Python package manager)
 # - Internet connection for package downloads
+#
+# IMPORTANT - How to Run:
+# 1. Open Terminal
+# 2. Navigate to StudyFlow directory: cd path/to/StudyFlow
+# 3. Make executable: chmod +x setup.sh
+# 4. Run: ./setup.sh
+#
+# This script CANNOT be run by double-clicking in File Explorer.
+# You MUST use Terminal.
 
 set -e  # Exit on error
 

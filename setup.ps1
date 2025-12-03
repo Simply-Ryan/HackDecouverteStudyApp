@@ -10,13 +10,20 @@
 
 .NOTES
     Author: StudyFlow Team
-    Version: 1.0.0
+    Version: 1.1.0
     Date: December 2025
     
     Requirements:
     - Python 3.8 or higher
     - pip (Python package manager)
     - Internet connection for package downloads
+    
+    IMPORTANT - How to Run:
+    1. Open PowerShell (NOT PowerShell ISE)
+    2. Navigate to the StudyFlow directory: cd path\to\StudyFlow
+    3. Run: PowerShell -ExecutionPolicy Bypass -File .\setup.ps1
+    
+    OR right-click setup.ps1 → Run with PowerShell (may require allowing execution)
 #>
 
 # Script configuration
@@ -43,23 +50,39 @@ Write-Host @"
 
 # Step 1: Check Python installation
 Write-Step "Checking Python installation..."
-try {
-    $pythonCmd = Get-Command python -ErrorAction Stop
-    $pythonVersion = python --version 2>&1 | Select-String -Pattern "Python ([\d.]+)" | ForEach-Object { $_.Matches.Groups[1].Value }
-    $pythonVersionObj = [Version]$pythonVersion
-    
-    if ($pythonVersionObj -lt $PYTHON_VERSION_REQUIRED) {
-        Write-Error "Python version $pythonVersion is installed, but $PYTHON_VERSION_REQUIRED or higher is required."
-        Write-Info "Please install Python from https://www.python.org/downloads/"
-        exit 1
+$pythonCmd = $null
+$pythonVersion = $null
+
+# Try python first, then python3
+foreach ($cmd in @('python', 'python3')) {
+    try {
+        $testCmd = Get-Command $cmd -ErrorAction Stop
+        $version = & $cmd --version 2>&1 | Select-String -Pattern "Python ([\d.]+)" | ForEach-Object { $_.Matches.Groups[1].Value }
+        if ($version) {
+            $pythonCmd = $cmd
+            $pythonVersion = $version
+            break
+        }
+    } catch {
+        continue
     }
-    
-    Write-Success "Python $pythonVersion detected"
-} catch {
+}
+
+if (-not $pythonCmd) {
     Write-Error "Python is not installed or not in PATH."
+    Write-Info "Please install Python 3.8+ from https://www.python.org/downloads/"
+    Write-Info "Make sure to check 'Add Python to PATH' during installation!"
+    exit 1
+}
+
+$pythonVersionObj = [Version]$pythonVersion
+if ($pythonVersionObj -lt $PYTHON_VERSION_REQUIRED) {
+    Write-Error "Python version $pythonVersion is installed, but $PYTHON_VERSION_REQUIRED or higher is required."
     Write-Info "Please install Python 3.8+ from https://www.python.org/downloads/"
     exit 1
 }
+
+Write-Success "Python $pythonVersion detected (using command: $pythonCmd)"
 
 # Step 2: Create virtual environment
 Write-Step "Creating virtual environment..."
@@ -68,9 +91,10 @@ if (Test-Path $VENV_DIR) {
     Remove-Item -Recurse -Force $VENV_DIR
 }
 
-python -m venv $VENV_DIR
+& $pythonCmd -m venv $VENV_DIR
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to create virtual environment"
+    Write-Info "Try: $pythonCmd -m pip install --upgrade pip setuptools virtualenv"
     exit 1
 }
 Write-Success "Virtual environment created successfully"
@@ -88,7 +112,7 @@ Write-Success "Virtual environment activated"
 
 # Step 4: Upgrade pip
 Write-Step "Upgrading pip to latest version..."
-python -m pip install --upgrade pip
+& $pythonCmd -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Failed to upgrade pip, continuing anyway..."
 }
@@ -169,7 +193,7 @@ if (Test-Path "sessions.db") {
         Write-Info "Old database removed. Creating new database..."
         
         # Create database from schema
-        python -c @"
+        & $pythonCmd -c @"
 import sqlite3
 with open('schema.sql', 'r', encoding='utf-8') as f:
     schema = f.read()
@@ -187,7 +211,7 @@ print('Database created successfully')
         Write-Success "Database initialized successfully"
     }
 } else {
-    python -c @"
+    & $pythonCmd -c @"
 import sqlite3
 with open('schema.sql', 'r', encoding='utf-8') as f:
     schema = f.read()
@@ -241,9 +265,13 @@ Write-Host @"
    
    Windows PowerShell:
    .\venv\Scripts\Activate.ps1
-   python app.py
+   (If activation fails due to execution policy, run:)
+   PowerShell -ExecutionPolicy Bypass -File .\venv\Scripts\Activate.ps1
    
-   Then open your browser to: http://localhost:5000
+   Then run:
+   $pythonCmd app.py
+   
+   Open your browser to: http://localhost:5000
 
 4. Create your first account and start collaborating!
 
