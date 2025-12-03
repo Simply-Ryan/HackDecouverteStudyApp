@@ -37,7 +37,7 @@
                     <small>{{ format_time_remaining(study_session.session_date) }}</small>
                 </div>
             </div>
-            {% if user_has_rsvp or is_creator %}
+            {% if 'user_id' in session %}
             <div class="quick-actions">
                 <a href="{{ url_for('video_call', session_id=study_session.id) }}" class="quick-btn video-btn" title="Start Video Call">
                     <i class="fas fa-video"></i>
@@ -2700,7 +2700,7 @@
 
     <!-- Right Sidebar -->
     <div class="session-sidebar">
-        {% if user_has_rsvp or is_creator %}
+        {% if 'user_id' in session %}
         <!-- Pomodoro Timer - Compact -->
         <div class="sidebar-widget pomodoro-compact">
             <div class="widget-header-compact">
