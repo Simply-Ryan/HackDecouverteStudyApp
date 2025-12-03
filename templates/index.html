@@ -48,7 +48,7 @@
         <div class="reminder-card">
             <div class="reminder-header">
                 <h3>{{ reminder.session_title }}</h3>
-                <span class="reminder-time">{{ reminder.created_at }}</span>
+                <span class="reminder-time">{{ reminder.created_at|format_datetime_with_time }}</span>
             </div>
             <p class="reminder-text">{{ reminder.reminder_text }}</p>
             <p class="reminder-sender">From: {{ reminder.sender_name }}</p>

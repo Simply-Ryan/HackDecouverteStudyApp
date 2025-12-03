@@ -125,6 +125,50 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def format_datetime(dt_str):
+    """Format datetime string to 'DD Month Year (Weekday)'
+    
+    Args:
+        dt_str: ISO format datetime string or datetime object
+        
+    Returns:
+        Formatted string like "15 December 2025 (Monday)"
+    """
+    if not dt_str:
+        return None
+    
+    try:
+        if isinstance(dt_str, str):
+            dt = datetime.fromisoformat(dt_str.replace('T', ' '))
+        else:
+            dt = dt_str
+        
+        return dt.strftime('%d %B %Y (%A)')
+    except:
+        return dt_str
+
+def format_datetime_with_time(dt_str):
+    """Format datetime string to 'DD Month Year (Weekday) at HH:MM'
+    
+    Args:
+        dt_str: ISO format datetime string or datetime object
+        
+    Returns:
+        Formatted string like "15 December 2025 (Monday) at 14:30"
+    """
+    if not dt_str:
+        return None
+    
+    try:
+        if isinstance(dt_str, str):
+            dt = datetime.fromisoformat(dt_str.replace('T', ' '))
+        else:
+            dt = dt_str
+        
+        return dt.strftime('%d %B %Y (%A) at %H:%M')
+    except:
+        return dt_str
+
 def format_time_remaining(session_date_str):
     """Calculate and format the time remaining until a session starts.
     
@@ -160,6 +204,8 @@ def format_time_remaining(session_date_str):
         return None
 
 app.jinja_env.globals.update(format_time_remaining=format_time_remaining)
+app.jinja_env.filters['format_datetime'] = format_datetime
+app.jinja_env.filters['format_datetime_with_time'] = format_datetime_with_time
 
 def markdown_to_html(text):
     """Convert markdown text to safe HTML.
@@ -1182,10 +1228,35 @@ def send_reminder(session_id):
     
     if study_session and study_session['creator_id'] == session['user_id']:
         # Create reminder record
-        conn.execute(
+        cursor = conn.execute(
             'INSERT INTO reminders (session_id, reminder_text, sent_by) VALUES (?, ?, ?)',
             (session_id, reminder_text, session['user_id'])
         )
+        reminder_id = cursor.lastrowid
+        
+        # Get session details and participants
+        session_info = conn.execute(
+            'SELECT title FROM sessions WHERE id = ?',
+            (session_id,)
+        ).fetchone()
+        
+        participants = conn.execute('''
+            SELECT user_id FROM rsvps 
+            WHERE session_id = ? AND user_id != ?
+        ''', (session_id, session['user_id'])).fetchall()
+        
+        # Create notifications for all participants
+        for participant in participants:
+            conn.execute('''
+                INSERT INTO notifications (user_id, type, title, message, link)
+                VALUES (?, 'reminder', ?, ?, ?)
+            ''', (
+                participant['user_id'],
+                f'Reminder: {session_info["title"]}',
+                reminder_text,
+                f'/session/{session_id}'
+            ))
+        
         conn.commit()
         flash(f'Reminder sent to all participants: "{reminder_text}"')
     else:
@@ -2559,6 +2630,14 @@ def generate_ai_recommendations():
             context['current_session'] = dict(session_info)
     
     try:
+        # Check if OpenAI is available
+        if not OPENAI_API_KEY or not AI_ENABLED:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'AI assistant is not configured. Please set OPENAI_API_KEY in .env file.'
+            }), 503
+        
         # Generate recommendations using OpenAI
         client = OpenAI(api_key=OPENAI_API_KEY)
         
@@ -2639,11 +2718,20 @@ Format as JSON array of recommendations."""
             'message': f'Generated {len(recommendation_ids)} personalized recommendations'
         })
         
-    except Exception as e:
+    except json.JSONDecodeError as e:
         conn.close()
+        print(f"JSON parsing error: {e}")
+        print(f"AI Response was likely not valid JSON")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Failed to parse AI response. Please try again.'
+        }), 500
+    except Exception as e:
+        conn.close()
+        print(f"AI recommendation error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate recommendations: {str(e)}'
         }), 500
 
 @app.route('/api/ai/recommendations/<int:rec_id>/feedback', methods=['POST'])
@@ -2964,7 +3052,7 @@ def analytics():
             'title': sess['title'],
             'subject': sess['subject'],
             'type': sess['session_type'],
-            'date': session_date.strftime('%b %d, %Y'),
+            'date': session_date.strftime('%d %B %Y (%A)'),
             'duration': 2
         })
     

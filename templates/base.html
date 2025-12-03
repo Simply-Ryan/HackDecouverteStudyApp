@@ -44,10 +44,10 @@
         (function() {
             {% if session.user_id %}
                 // For logged-in users, check localStorage or use database setting
-                const savedTheme = localStorage.getItem('studyflow-theme') || '{{ user_theme if user_theme else "dark" }}';
+                const savedTheme = localStorage.getItem('studyflow-theme') || '{{ user_theme if user_theme else "light" }}';
             {% else %}
-                // For non-logged-in users, default to dark
-                const savedTheme = localStorage.getItem('studyflow-theme') || 'dark';
+                // For non-logged-in users, default to light
+                const savedTheme = localStorage.getItem('studyflow-theme') || 'light';
             {% endif %}
             document.documentElement.setAttribute('data-theme', savedTheme);
             localStorage.setItem('studyflow-theme', savedTheme);
@@ -237,20 +237,31 @@
         // Format timestamp
         function formatTime(timestamp) {
             const date = new Date(timestamp);
-            const now = new Date();
-            const diffMs = now - date;
-            const diffMins = Math.floor(diffMs / 60000);
             
-            if (diffMins < 1) return 'Just now';
-            if (diffMins < 60) return `${diffMins}m ago`;
+            // Format as "DD Month Year (Weekday) at HH:MM"
+            const options = {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                weekday: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
             
-            const diffHours = Math.floor(diffMins / 60);
-            if (diffHours < 24) return `${diffHours}h ago`;
+            const formatted = date.toLocaleDateString('en-US', options);
+            const parts = formatted.split(', ');
             
-            const diffDays = Math.floor(diffHours / 24);
-            if (diffDays < 7) return `${diffDays}d ago`;
+            // Rearrange from "Weekday, Month DD, YYYY at HH:MM" to "DD Month YYYY (Weekday) at HH:MM"
+            if (parts.length >= 3) {
+                const weekday = parts[0];
+                const monthDay = parts[1];
+                const yearTime = parts[2];
+                const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+                
+                return `${monthDay} ${yearTime.split(' at ')[0]} (${weekday}) at ${time}`;
+            }
             
-            return date.toLocaleDateString();
+            return formatted;
         }
         
         // Escape HTML

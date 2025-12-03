@@ -599,7 +599,7 @@ body {
 
 .hero h1 {
     font-size: 3rem;
-    color: var(--text-primary);
+    color: white;
     margin-bottom: 1rem;
     font-weight: 800;
     letter-spacing: -1px;
@@ -607,7 +607,7 @@ body {
 
 .hero p {
     font-size: 1.2rem;
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.9);
     margin-bottom: 2rem;
 }
 
@@ -617,13 +617,13 @@ body {
 
 /* Session list container */
 .sessions-list {
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--card-bg);
     backdrop-filter: blur(10px);
     padding: 2rem;
     border-radius: 20px;
     margin: 1rem 0;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
 }
 
 .sessions-list h2 {
@@ -753,16 +753,16 @@ body {
 
 /* Form container and styling */
 .form-container {
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--card-bg);
     backdrop-filter: blur(10px);
     padding: 3rem;
     border-radius: 20px;
     margin: 2rem 0;
-    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-lg);
     max-width: 600px;
     margin-left: auto;
     margin-right: auto;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid var(--border-color);
 }
 
 .form-container h1 {
@@ -3168,9 +3168,17 @@ body {
     margin: 0;
 }
 
+[data-theme="dark"] .reminder-header h3 {
+    color: #2d3748;
+}
+
 .reminder-time {
     font-size: 0.85rem;
     color: var(--text-secondary);
+}
+
+[data-theme="dark"] .reminder-time {
+    color: #4a5568;
 }
 
 .reminder-text {
@@ -3183,10 +3191,18 @@ body {
     border-radius: 6px;
 }
 
+[data-theme="dark"] .reminder-text {
+    color: #2d3748;
+}
+
 .reminder-sender {
     font-size: 0.9rem;
     color: var(--text-secondary);
     margin-bottom: 10px;
+}
+
+[data-theme="dark"] .reminder-sender {
+    color: #4a5568;
 }
 
 .reminder-actions {
@@ -3565,12 +3581,13 @@ body {
 }
 
 .preview-close-btn {
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--card-bg);
     color: var(--text-primary);
+    border: 2px solid var(--border-color);
 }
 
 .preview-close-btn:hover {
-    background: white;
+    background: var(--bg-tertiary);
     transform: rotate(90deg) scale(1.1);
 }
 
@@ -4272,8 +4289,14 @@ body.menu-open {
         grid-template-columns: 1fr;
     }
     
+    .chart-container {
+        max-width: 100%;
+        overflow: hidden;
+    }
+    
     .chart-container canvas {
         height: 250px !important;
+        max-width: 100% !important;
     }
     
     /* Modals */
@@ -4732,6 +4755,21 @@ body.menu-open {
 [data-theme="dark"] .browse-notes-section .section-container,
 [data-theme="dark"] .filter-controls {
     background: var(--card-bg);
+}
+
+[data-theme="dark"] .form-container {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+}
+
+[data-theme="dark"] .preview-close-btn {
+    background: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .preview-close-btn:hover {
+    background: var(--bg-tertiary);
 }
 
 /* ============================================

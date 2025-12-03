@@ -97,7 +97,7 @@ function renderRecommendations() {
     
     if (recommendations.length === 0) {
         grid.innerHTML = `
-            <div class="empty-state">
+            <div class="empty-state" style="text-align: center; padding: 3rem; grid-column: 1 / -1;">
                 <i class="fas fa-lightbulb fa-3x"></i>
                 <h3>No recommendations yet</h3>
                 <p>Click "Generate New Recommendations" to get personalized study resources</p>
@@ -334,6 +334,26 @@ async function dismissRecommendation(recId) {
     }
 }
 
+function formatDatetime(timestamp) {
+    const date = new Date(timestamp);
+    const options = {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        weekday: 'long'
+    };
+    const formatted = date.toLocaleDateString('en-US', options);
+    const parts = formatted.split(', ');
+    
+    if (parts.length >= 3) {
+        const weekday = parts[0];
+        const monthDay = parts[1];
+        const year = parts[2];
+        return `${monthDay} ${year} (${weekday})`;
+    }
+    return formatted;
+}
+
 async function loadStudyTopics() {
     const response = await fetch('/api/ai/topics');
     const data = await response.json();
@@ -355,7 +375,7 @@ async function loadStudyTopics() {
                 </div>
                 <div class="topic-stats">
                     <span><i class="fas fa-book"></i> ${topic.study_count} sessions</span>
-                    ${topic.last_studied ? `<span><i class="fas fa-clock"></i> ${new Date(topic.last_studied).toLocaleDateString()}</span>` : ''}
+                    ${topic.last_studied ? `<span><i class="fas fa-clock"></i> ${formatDatetime(topic.last_studied)}</span>` : ''}
                 </div>
             </div>
         `).join('');

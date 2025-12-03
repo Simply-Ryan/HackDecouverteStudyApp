@@ -101,7 +101,7 @@
                         </a>
                         <p class="activity-meta">
                             <span class="activity-subject">{{ sess.subject }}</span>
-                            <span class="activity-date">{{ sess.session_date }}</span>
+                            <span class="activity-date">{{ sess.session_date|format_datetime_with_time }}</span>
                         </p>
                     </div>
                 </div>

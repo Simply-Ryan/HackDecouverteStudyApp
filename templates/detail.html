@@ -13,260 +13,100 @@
     </defs>
 </svg>
 
-<div class="session-detail">
-    <div class="detail-header">
-        <h1>{{ study_session.title }}</h1>
-        <div class="header-badges">
-            <span class="badge badge-subject">{{ study_session.subject }}</span>
-            <span class="badge badge-{{ study_session.session_type }}">
-                {% if study_session.session_type == 'remote' %}
-                    <i class="fas fa-globe"></i> Remote
-                {% else %}
-                    <i class="fas fa-map-marker-alt"></i> In-Person
-                {% endif %}
-            </span>
-        </div>
-    </div>
-
-    {% if study_session.session_date %}
-        <div class="session-datetime">
-            <h3><i class="fas fa-calendar"></i> Scheduled For</h3>
-            <p class="datetime-display">{{ study_session.session_date|replace('T', ' at ') }}</p>
-            <p class="countdown-display">{{ format_time_remaining(study_session.session_date) }}</p>
-        </div>
-    {% endif %}
-
-    <div class="detail-info">
-        {% if study_session.session_type == 'remote' and study_session.meeting_link %}
-            <div class="info-box">
-                <strong>Meeting Link:</strong>
-                <a href="{{ study_session.meeting_link }}" target="_blank" class="link">{{ study_session.meeting_link }}</a>
+<div class="session-detail-redesign">
+    <!-- Compact Header -->
+    <div class="session-header-compact">
+        <div class="header-main">
+            <h1>{{ study_session.title }}</h1>
+            <div class="header-meta">
+                <span class="badge badge-subject">{{ study_session.subject }}</span>
+                <span class="badge badge-{{ study_session.session_type }}">
+                    <i class="fas fa-{{ 'globe' if study_session.session_type == 'remote' else 'map-marker-alt' }}"></i>
+                    {{ 'Remote' if study_session.session_type == 'remote' else 'In-Person' }}
+                </span>
+                <span class="creator-badge"><i class="fas fa-user"></i> {{ study_session.creator_name }}</span>
             </div>
-        {% elif study_session.session_type == 'in-person' and study_session.location %}
-            <div class="info-box">
-                <strong>Location:</strong>
-                <span><i class="fas fa-map-marker-alt"></i> {{ study_session.location }}</span>
-            </div>
-        {% endif %}
-    </div>
-
-    <div class="session-creator-info">
-        <p><strong>Created by:</strong> {{ study_session.creator_name }}</p>
-    </div>
-
-    {% if is_creator %}
-    <div class="invite-section">
-        <h2><i class="fas fa-envelope"></i> Invite Students</h2>
-        <p>As the creator, you can invite other students to join this session</p>
+        </div>
         
-        {% if all_users %}
-            <form method="POST" action="{{ url_for('invite_user', session_id=study_session.id) }}" class="invite-form">
-                <div class="form-group">
-                    <select name="invitee_id" required class="select-input">
-                        <option value="">Select a student to invite...</option>
-                        {% for user in all_users %}
-                            <option value="{{ user.id }}">{{ user.full_name }} (@{{ user.username }})</option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="btn-primary">Send Invitation</button>
+        {% if study_session.session_date %}
+        <div class="header-datetime">
+            <div class="datetime-info">
+                <i class="fas fa-calendar-alt"></i>
+                <div>
+                    <strong>{{ study_session.session_date|format_datetime_with_time }}</strong>
+                    <small>{{ format_time_remaining(study_session.session_date) }}</small>
                 </div>
-            </form>
-        {% else %}
-            <p class="info-message">All available students have been invited or already joined!</p>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    <div class="rsvp-section">
-        <div class="section-header-with-actions">
-            <h2>RSVP to this Session</h2>
+            </div>
             {% if user_has_rsvp or is_creator %}
-                <div class="calendar-buttons">
-                    <a href="{{ url_for('video_call', session_id=study_session.id) }}" class="btn-calendar" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none;">
-                        <i class="fas fa-video"></i> Start Call
-                    </a>
-                    <a href="{{ url_for('whiteboard', session_id=study_session.id) }}" class="btn-calendar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
-                        <i class="fas fa-chalkboard"></i> Open Whiteboard
-                    </a>
-                    <a href="{{ url_for('export_to_calendar', session_id=study_session.id) }}" class="btn-calendar">
-                        <i class="fas fa-calendar-plus"></i> Download .ics
-                    </a>
-                    <button class="btn-calendar" onclick="showCalendarOptions({{ study_session.id }})">
-                        <i class="fas fa-calendar-alt"></i> Add to Calendar <i class="fas fa-chevron-down" style="font-size: 0.8rem;"></i>
+            <div class="quick-actions">
+                <a href="{{ url_for('video_call', session_id=study_session.id) }}" class="quick-btn video-btn" title="Start Video Call">
+                    <i class="fas fa-video"></i>
+                </a>
+                <a href="{{ url_for('whiteboard', session_id=study_session.id) }}" class="quick-btn whiteboard-btn" title="Open Whiteboard">
+                    <i class="fas fa-chalkboard"></i>
+                </a>
+                <div class="calendar-dropdown-wrapper">
+                    <button class="quick-btn calendar-btn" onclick="showCalendarOptions({{ study_session.id}})" title="Add to Calendar">
+                        <i class="fas fa-calendar-plus"></i>
                     </button>
                     <div class="calendar-dropdown" id="calendarDropdown-{{ study_session.id }}" style="display: none;">
-                        <a href="#" onclick="addToGoogleCalendar(event); return false;" class="calendar-option">
-                            <i class="fab fa-google"></i> Google Calendar
-                        </a>
-                        <a href="#" onclick="addToOutlook(event); return false;" class="calendar-option">
-                            <i class="fab fa-microsoft"></i> Outlook Calendar
-                        </a>
-                        <a href="{{ url_for('export_to_calendar', session_id=study_session.id) }}" class="calendar-option">
-                            <i class="fas fa-download"></i> Download .ics file
-                        </a>
+                        <a href="#" onclick="addToGoogleCalendar(event); return false;"><i class="fab fa-google"></i> Google Calendar</a>
+                        <a href="#" onclick="addToOutlook(event); return false;"><i class="fab fa-microsoft"></i> Outlook</a>
+                        <a href="{{ url_for('export_to_calendar', session_id=study_session.id) }}"><i class="fas fa-download"></i> Download .ics</a>
                     </div>
                 </div>
+            </div>
             {% endif %}
         </div>
+        {% endif %}
         
-        <div class="capacity-indicator">
-            <div class="capacity-text">
-                <span class="capacity-numbers">{{ current_count }} / {{ max_participants }} spots filled</span>
-                {% if is_full %}
-                    <span class="capacity-full">Session Full</span>
-                {% elif spots_left <= 3 %}
-                    <span class="capacity-warning"><i class="fas fa-exclamation-triangle"></i> Only {{ spots_left }} spots left!</span>
-                {% else %}
-                    <span class="capacity-available"><i class="fas fa-check-circle"></i> {{ spots_left }} spots available</span>
+        <!-- Location/Meeting Link -->
+        {% if study_session.session_type == 'remote' and study_session.meeting_link %}
+        <div class="header-extra">
+            <i class="fas fa-link"></i>
+            <a href="{{ study_session.meeting_link }}" target="_blank">{{ study_session.meeting_link }}</a>
+        </div>
+        {% elif study_session.session_type == 'in-person' and study_session.location %}
+        <div class="header-extra">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>{{ study_session.location }}</span>
+        </div>
+        {% endif %}
+        
+        <!-- RSVP Status Bar -->
+        <div class="rsvp-bar">
+            <div class="rsvp-info">
+                <span class="participant-count">{{ current_count }}/{{ max_participants }} participants</span>
+                {% if 'user_id' in session and user_has_rsvp %}
+                <span class="rsvp-status joined"><i class="fas fa-check-circle"></i> You're in!</span>
+                {% elif not is_full and 'user_id' in session %}
+                <form method="POST" style="display: inline; margin: 0;">
+                    <input type="hidden" name="rsvp" value="1">
+                    <button type="submit" class="btn-rsvp">RSVP Now</button>
+                </form>
+                {% elif is_full %}
+                <span class="rsvp-status full"><i class="fas fa-times-circle"></i> Full</span>
                 {% endif %}
             </div>
-            <div class="capacity-bar">
-                <div class="capacity-progress" style="width: {{ (current_count / max_participants * 100)|int }}%"></div>
-            </div>
-        </div>
-        
-        {% if 'user_id' in session %}
-            {% if user_has_rsvp %}
-                <p class="success-message">You have RSVP'd to this session!</p>
-            {% elif not is_full %}
-                <form method="POST" class="rsvp-form">
-                    <input type="hidden" name="rsvp" value="1">
-                    <button type="submit" class="btn-primary btn-large">RSVP to Join</button>
-                </form>
-            {% else %}
-                <p class="full-message">This session has reached maximum capacity.</p>
-            {% endif %}
-        {% else %}
-            <p class="info-message">Please <a href="{{ url_for('login') }}">login</a> to RSVP to this session.</p>
-        {% endif %}
-    </div>
-
-    <div class="participants-section">
-        <h2>Participants ({{ current_count }} / {{ max_participants }})</h2>
-        {% if rsvps %}
-            <ul class="participant-list" id="participantList">
-                {% for rsvp in rsvps %}
-                    <li data-user-id="{{ rsvp.user_id }}">
-                        <span class="presence-indicator offline" id="presence-{{ rsvp.user_id }}"></span>
-                        👤 {{ rsvp.full_name }}
-                        <span class="username-badge">@{{ rsvp.username }}</span>
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="empty-state">No participants yet. Be the first to RSVP!</p>
-        {% endif %}
-    </div>
-
-    <!-- Pomodoro Timer Widget -->
-    {% if user_has_rsvp or is_creator %}
-    <div class="pomodoro-widget">
-        <div class="pomodoro-header">
-            <h2><i class="fas fa-clock"></i> Focus Timer</h2>
-            <button class="pomodoro-stats-btn" onclick="showPomodoroStats()" title="View Statistics">
-                <i class="fas fa-chart-line"></i>
-            </button>
-        </div>
-        
-        <div class="pomodoro-display" id="pomodoroDisplay">
-            <div class="timer-circle">
-                <svg class="timer-svg" viewBox="0 0 200 200">
-                    <circle class="timer-bg" cx="100" cy="100" r="90"></circle>
-                    <circle class="timer-progress" id="timerProgress" cx="100" cy="100" r="90"></circle>
-                </svg>
-                <div class="timer-text">
-                    <div class="timer-time" id="timerTime">25:00</div>
-                    <div class="timer-label" id="timerLabel">Focus Time</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="pomodoro-controls">
-            <button class="pomodoro-btn start-btn" id="startPomodoroBtn" onclick="togglePomodoro()">
-                <i class="fas fa-play"></i> Start
-            </button>
-            <button class="pomodoro-btn reset-btn" onclick="resetPomodoro()">
-                <i class="fas fa-redo"></i> Reset
-            </button>
-            <button class="pomodoro-btn settings-btn" onclick="showPomodoroSettings()">
-                <i class="fas fa-cog"></i> Settings
-            </button>
-        </div>
-        
-        <div class="pomodoro-progress-info">
-            <div class="progress-stat">
-                <i class="fas fa-fire"></i>
-                <span id="todayPomodoros">0</span> today
-            </div>
-            <div class="progress-stat">
-                <i class="fas fa-trophy"></i>
-                <span id="streakDays">0</span> day streak
+            <div class="capacity-bar-inline">
+                <div class="capacity-fill" style="width: {{ (current_count / max_participants * 100)|int }}%"></div>
             </div>
         </div>
     </div>
-    {% endif %}
 
-    <!-- AI Recommendations Widget -->
-    {% if user_has_rsvp or is_creator %}
-    <div class="ai-recommendations-widget">
-        <div class="widget-header">
-            <h2><i class="fas fa-brain"></i> AI Study Resources</h2>
-            <button class="btn-primary btn-small" onclick="generateSessionRecommendations()">
-                <i class="fas fa-sparkles"></i> Get Recommendations
-            </button>
-        </div>
-        
-        <div id="sessionRecommendations" class="session-recommendations">
-            <p class="empty-message">Click "Get Recommendations" to receive personalized study resources for this session.</p>
-        </div>
-    </div>
-    {% endif %}
+    <!-- 2-Column Layout -->
+    <div class="session-grid-layout">
 
-    <!-- Music Player Widget -->
-    {% if user_has_rsvp or is_creator %}
-    <div class="music-player-widget">
-        <div class="music-header">
-            <h2><i class="fas fa-music"></i> Study Music</h2>
-            <button class="btn-secondary btn-small" onclick="toggleMusicPanel()">
-                <i class="fas fa-list" id="musicPanelIcon"></i>
-            </button>
+    <!-- Main Content Area with Tabs -->
+    <div class="detail-main-content">
+        <div class="tab-navigation">
+            <button class="tab-btn active" data-tab="chat"><i class="fas fa-comments"></i> Chat</button>
+            <button class="tab-btn" data-tab="files"><i class="fas fa-folder"></i> Files</button>
+            <button class="tab-btn" data-tab="info"><i class="fas fa-info-circle"></i> Details</button>
         </div>
-        
-        <div class="music-panel" id="musicPanel" style="display: none;">
-            <div class="playlist-selector">
-                <h3>Select Playlist</h3>
-                <div class="playlist-grid" id="playlistGrid">
-                    <!-- Playlists loaded via JavaScript -->
-                </div>
-            </div>
-        </div>
-        
-        <div class="music-controls" id="musicControls" style="display: none;">
-            <div class="now-playing">
-                <i class="fas fa-music music-icon"></i>
-                <div>
-                    <strong id="currentPlaylistName">No music playing</strong>
-                    <small id="currentPlaylistType"></small>
-                </div>
-            </div>
-            <div class="control-buttons">
-                <button class="control-btn" onclick="pauseSessionMusic()" id="pauseBtn" style="display: none;">
-                    <i class="fas fa-pause"></i>
-                </button>
-                <button class="control-btn" onclick="resumeSessionMusic()" id="resumeBtn" style="display: none;">
-                    <i class="fas fa-play"></i>
-                </button>
-                <button class="control-btn stop-btn" onclick="stopSessionMusic()">
-                    <i class="fas fa-stop"></i>
-                </button>
-            </div>
-        </div>
-        
-        <!-- Hidden YouTube player -->
-        <div id="youtubePlayerContainer" style="display: none;"></div>
-    </div>
-    {% endif %}
 
+        <!-- Chat Tab -->
+        <div class="tab-content active" id="chat-tab">
     <div class="study-room-chat">
         <h2>Study Room Chat</h2>
         <p class="chat-description">Ask questions, share notes, or coordinate with your study group!</p>
@@ -279,7 +119,7 @@
                             <div class="message-header">
                                 <strong class="sender-name">{{ item.full_name }}</strong>
                                 <span class="username-badge">@{{ item.username }}</span>
-                                <span class="message-time">{{ item.created_at }}</span>
+                                <span class="message-time">{{ item.created_at|format_datetime_with_time }}</span>
                             </div>
                             {% if item.parent_info %}
                                 <div class="reply-reference">
@@ -305,7 +145,7 @@
                             {% endif %}
                             {% if 'user_id' in session %}
                                 <div class="message-actions-btns">
-                                    <button class="msg-action-btn" onclick="showReplyForm({{ item.id }}, '{{ item.full_name }}', '{{ item.message_text|replace("'", "\\'") }}')" title="Reply">
+                                    <button class="msg-action-btn" onclick="showReplyForm({{ item.id }}, '{{ item.full_name }}', `{{ item.message_text|replace('`', '\\`') }}`)" title="Reply">
                                         <i class="fas fa-reply"></i>
                                     </button>
                                     <button class="msg-action-btn reaction-picker-btn" onclick="event.stopPropagation(); showReactionPicker({{ item.id }})" title="React">
@@ -322,7 +162,7 @@
                             <div class="message-header">
                                 <strong class="sender-name">{{ item.full_name }}</strong>
                                 <span class="username-badge">@{{ item.username }}</span>
-                                <span class="message-time">{{ item.created_at }}</span>
+                                <span class="message-time">{{ item.created_at|format_datetime_with_time }}</span>
                             </div>
                             <div class="file-message-content">
                                 <div class="file-preview-thumb">
@@ -391,16 +231,24 @@
             <p class="info-message">Please <a href="{{ url_for('login') }}">login</a> to send messages.</p>
         {% endif %}
     </div>
+    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Files Tab -->
+    <div class="tab-content" id="files-tab">
     <script>
+    // Initialize WebSocket connection first (global scope)
+    const socket = io();
+    const sessionId = {{ study_session.id }};
+    const currentUserId = {{ session.get('user_id', 'null') }};
+    const currentUserName = '{{ session.get("full_name", "") }}';
+    const isCreator = {{ 'true' if is_creator else 'false' }};
+    let isCurrentlyTyping = false; // Move to global scope
+    
     // real-time chat updates
     (function() {
         const messagesContainer = document.querySelector('.messages-container');
         const messageForm = document.getElementById('messageForm');
         const messageTextarea = document.getElementById('messageTextarea');
-        const sessionId = {{ study_session.id }};
-        const currentUserId = {{ session.get('user_id', 'null') }};
         let lastMessageId = 0;
         let pollInterval;
         let isSubmitting = false;
@@ -581,11 +429,7 @@
             return size.toFixed(1) + ' ' + units[unitIndex];
         }
 
-        // Initialize WebSocket connection
-        const socket = io();
-        const sessionId = {{ study_session.id }};
-
-        // Join the session room for real-time updates
+        // Join the session room for real-time updates (socket is global now)
         socket.emit('join_session', { 
             session_id: sessionId,
             user_id: currentUserId,
@@ -641,7 +485,7 @@
         let typingTimeout;
         const typingIndicator = document.getElementById('typingIndicator');
         const typingUserSpan = typingIndicator ? typingIndicator.querySelector('.typing-user') : null;
-        const currentUserName = '{{ session.get("full_name", "") }}';
+        // currentUserName is already declared globally
         let activeTypers = new Set();
 
         // Listen for typing events from other users
@@ -682,8 +526,6 @@
 
         // Emit typing events when user types
         if (messageTextarea) {
-            let isCurrentlyTyping = false;
-
             messageTextarea.addEventListener('input', function() {
                 if (!isCurrentlyTyping) {
                     isCurrentlyTyping = true;
@@ -1088,7 +930,7 @@
                                     <h4>{{ recording.original_filename }}</h4>
                                     <small>
                                         Uploaded by {{ recording.full_name }} • 
-                                        {{ recording.created_at[:10] }} •
+                                        {{ recording.created_at|format_datetime }} •
                                         {% if recording.duration %}{{ recording.duration // 60 }}:{{ '%02d' % (recording.duration % 60) }}{% else %}Unknown duration{% endif %}
                                     </small>
                                 </div>
@@ -1155,14 +997,74 @@
             <p class="info-message">Please <a href="{{ url_for('login') }}">login</a> to upload recordings.</p>
         {% endif %}
     </div>
+    </div>
 
+    <!-- Info/Details Tab -->
+    <div class="tab-content" id="info-tab">
+        <div class="session-info-grid">
+            {% if is_creator %}
+            <div class="info-card">
+                <h3><i class="fas fa-envelope"></i> Invite Students</h3>
+                {% if all_users %}
+                    <form method="POST" action="{{ url_for('invite_user', session_id=study_session.id) }}" class="invite-form-compact">
+                        <select name="invitee_id" required class="select-input">
+                            <option value="">Select a student...</option>
+                            {% for user in all_users %}
+                                <option value="{{ user.id }}">{{ user.full_name }} (@{{ user.username }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn-primary btn-small">Send Invite</button>
+                    </form>
+                {% else %}
+                    <p class="empty-compact">All students invited!</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="info-card">
+                <h3><i class="fas fa-calendar"></i> Session Details</h3>
+                <div class="info-item">
+                    <strong>Created by:</strong>
+                    <span>{{ study_session.creator_name }}</span>
+                </div>
+                <div class="info-item">
+                    <strong>Subject:</strong>
+                    <span class="badge badge-subject">{{ study_session.subject }}</span>
+                </div>
+                <div class="info-item">
+                    <strong>Type:</strong>
+                    <span class="badge badge-{{ study_session.session_type }}">
+                        {% if study_session.session_type == 'remote' %}
+                            <i class="fas fa-globe"></i> Remote
+                        {% else %}
+                            <i class="fas fa-map-marker-alt"></i> In-Person
+                        {% endif %}
+                    </span>
+                </div>
+                {% if study_session.session_type == 'remote' and study_session.meeting_link %}
+                <div class="info-item">
+                    <strong>Meeting Link:</strong>
+                    <a href="{{ study_session.meeting_link }}" target="_blank" class="link">Join Meeting</a>
+                </div>
+                {% elif study_session.session_type == 'in-person' and study_session.location %}
+                <div class="info-item">
+                    <strong>Location:</strong>
+                    <span><i class="fas fa-map-marker-alt"></i> {{ study_session.location }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
     // real-time file updates
     (function() {
         const filesList = document.getElementById('filesList');
         const uploadForm = document.querySelector('.upload-form');
         const fileInput = document.getElementById('file');
-        const sessionId = {{ study_session.id }};
+        // sessionId already declared in outer scope
         const currentUserId = {{ session.get('user_id', 'null') }};
         const isCreator = {{ 'true' if is_creator else 'false' }};
         let lastFileId = 0;
@@ -2008,8 +1910,15 @@
         }
     }
     
-    // Run auto-translate on page load
+    // Run auto-translate on page load and when new messages arrive
     document.addEventListener('DOMContentLoaded', autoTranslateMessages);
+    
+    // Re-run auto-translate when new messages are added
+    socket.on('new_message', (data) => {
+        setTimeout(() => {
+            autoTranslateMessages();
+        }, 500);
+    });
 
     // Calendar integration functions
     function showCalendarOptions(sessionId) {
@@ -2090,7 +1999,7 @@
     let pomodorosCompleted = 0;
     
     // Load user preferences
-    async function loadPomodoroPreferences() {
+    window.loadPomodoroPreferences = async function loadPomodoroPreferences() {
         try {
             const response = await fetch('/api/pomodoro/preferences');
             const data = await response.json();
@@ -2108,7 +2017,7 @@
     }
     
     // Load statistics
-    async function loadPomodoroStatistics() {
+    window.loadPomodoroStatistics = async function loadPomodoroStatistics() {
         try {
             const response = await fetch('/api/pomodoro/statistics');
             const data = await response.json();
@@ -2122,7 +2031,8 @@
         }
     }
     
-    function togglePomodoro() {
+    window.togglePomodoro = function togglePomodoro() {
+        console.log('togglePomodoro called', {pomodoroRunning});
         if (pomodoroRunning) {
             pausePomodoro();
         } else {
@@ -2130,7 +2040,7 @@
         }
     }
     
-    async function startPomodoro() {
+    window.startPomodoro = async function startPomodoro() {
         if (!pomodoroRunning && !currentPomodoroId) {
             // Start new pomodoro session in backend
             try {
@@ -2155,8 +2065,14 @@
         
         pomodoroRunning = true;
         const startBtn = document.getElementById('startPomodoroBtn');
-        startBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
-        startBtn.classList.add('pause');
+        const playIcon = document.getElementById('pomodoroPlayIcon');
+        if (startBtn) {
+            startBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+            startBtn.classList.add('pause');
+        }
+        if (playIcon) {
+            playIcon.className = 'fas fa-pause';
+        }
         
         pomodoroTimer = setInterval(() => {
             pomodoroTimeLeft--;
@@ -2173,8 +2089,14 @@
         clearInterval(pomodoroTimer);
         
         const startBtn = document.getElementById('startPomodoroBtn');
-        startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
-        startBtn.classList.remove('pause');
+        const playIcon = document.getElementById('pomodoroPlayIcon');
+        if (startBtn) {
+            startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
+            startBtn.classList.remove('pause');
+        }
+        if (playIcon) {
+            playIcon.className = 'fas fa-play';
+        }
     }
     
     async function completePomodoro() {
@@ -2216,8 +2138,14 @@
         }
         
         const startBtn = document.getElementById('startPomodoroBtn');
-        startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
-        startBtn.classList.remove('pause');
+        const playIcon = document.getElementById('pomodoroPlayIcon');
+        if (startBtn) {
+            startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
+            startBtn.classList.remove('pause');
+        }
+        if (playIcon) {
+            playIcon.className = 'fas fa-play';
+        }
     }
     
     function switchToBreak(type, duration) {
@@ -2236,19 +2164,24 @@
         showNotification(`${labels[type]} is ready! ${type === 'work' ? 'Time to focus!' : 'Take a break!'}`);
     }
     
-    function resetPomodoro() {
+    window.resetPomodoro = function resetPomodoro() {
         clearInterval(pomodoroTimer);
         pomodoroRunning = false;
         currentPomodoroId = null;
         pomodoroType = 'work';
-        pomodoroTimeLeft = 25 * 60;
-        pomodoroTotalTime = 25 * 60;
         
-        updateTimerDisplay();
+        // Reload preferences to restore user's preferred duration
+        loadPomodoroPreferences();
         
         const startBtn = document.getElementById('startPomodoroBtn');
-        startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
-        startBtn.classList.remove('pause');
+        const playIcon = document.getElementById('pomodoroPlayIcon');
+        if (startBtn) {
+            startBtn.innerHTML = '<i class="fas fa-play"></i> Start';
+            startBtn.classList.remove('pause');
+        }
+        if (playIcon) {
+            playIcon.className = 'fas fa-play';
+        }
         document.getElementById('timerLabel').textContent = 'Focus Time';
     }
     
@@ -2301,7 +2234,7 @@
         window.location.href = '/analytics';
     }
     
-    function showPomodoroSettings() {
+    window.showPomodoroSettings = function showPomodoroSettings() {
         // TODO: Create settings modal for Pomodoro preferences
         const workDuration = prompt('Work duration (minutes):', '25');
         const shortBreak = prompt('Short break duration (minutes):', '5');
@@ -2329,17 +2262,19 @@
     
     // Initialize on page load
     {% if user_has_rsvp or is_creator %}
-    loadPomodoroPreferences();
-    loadPomodoroStatistics();
+    console.log('Initializing Pomodoro and Music...');
+    // Wrap in try-catch to prevent errors from breaking everything
+    try {
+        loadPomodoroPreferences();
+        loadPomodoroStatistics();
+    } catch (error) {
+        console.error('Error loading Pomodoro:', error);
+    }
     
     // Request notification permission
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
     }
-    
-    // Initialize music player
-    loadPlaylists();
-    checkMusicStatus();
     {% endif %}
     
     // AI Recommendations for Session
@@ -2354,7 +2289,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    session_id: {{ session.id }},
+                    session_id: {{ study_session.id }},
                     context: 'session'
                 })
             });
@@ -2419,22 +2354,38 @@
     let ytPlayer = null;
     
     // Load YouTube IFrame API
-    const tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    if (!window.YT) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
+    
+    let youtubeAPIReady = false;
     
     function onYouTubeIframeAPIReady() {
         console.log('YouTube API ready');
+        youtubeAPIReady = true;
+        // Initialize music after API is ready
+        {% if user_has_rsvp or is_creator %}
+        try {
+            loadPlaylists();
+            checkMusicStatus();
+        } catch (error) {
+            console.error('Error initializing music:', error);
+        }
+        {% endif %}
     }
     
-    async function loadPlaylists() {
+    window.loadPlaylists = async function loadPlaylists() {
+        console.log('Loading playlists...');
         try {
             const response = await fetch('/api/music/playlists');
             const data = await response.json();
             
             if (data.success) {
                 playlists = data.playlists;
+                console.log('Loaded playlists:', playlists.length);
                 renderPlaylists();
             }
         } catch (error) {
@@ -2477,20 +2428,22 @@
         return icons[type] || 'music';
     }
     
-    function toggleMusicPanel() {
+    window.toggleMusicPanel = function toggleMusicPanel() {
         const panel = document.getElementById('musicPanel');
         const icon = document.getElementById('musicPanelIcon');
         
-        if (panel.style.display === 'none') {
-            panel.style.display = 'block';
-            icon.className = 'fas fa-times';
-        } else {
-            panel.style.display = 'none';
-            icon.className = 'fas fa-list';
+        if (panel) {
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                if (icon) icon.className = 'fas fa-times';
+            } else {
+                panel.style.display = 'none';
+                if (icon) icon.className = 'fas fa-list';
+            }
         }
     }
     
-    async function playPlaylist(playlistId) {
+    window.playPlaylist = async function playPlaylist(playlistId) {
         try {
             const response = await fetch(`/api/music/session/{{ study_session.id }}/play`, {
                 method: 'POST',
@@ -2527,20 +2480,32 @@
     }
     
     function updateMusicUI(music) {
-        document.getElementById('currentPlaylistName').textContent = music.playlist_name;
-        document.getElementById('currentPlaylistType').textContent = music.playlist_type;
-        document.getElementById('musicControls').style.display = 'flex';
+        const playlistName = document.getElementById('currentPlaylistName');
+        const playlistType = document.getElementById('currentPlaylistType');
+        const musicControls = document.getElementById('musicControls');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        
+        if (playlistName) playlistName.textContent = music.playlist_name;
+        if (playlistType) playlistType.textContent = music.playlist_type;
+        if (musicControls) musicControls.style.display = 'flex';
         
         if (music.is_playing) {
-            document.getElementById('pauseBtn').style.display = 'inline-block';
-            document.getElementById('resumeBtn').style.display = 'none';
+            if (pauseBtn) pauseBtn.style.display = 'inline-block';
+            if (resumeBtn) resumeBtn.style.display = 'none';
         } else {
-            document.getElementById('pauseBtn').style.display = 'none';
-            document.getElementById('resumeBtn').style.display = 'inline-block';
+            if (pauseBtn) pauseBtn.style.display = 'none';
+            if (resumeBtn) resumeBtn.style.display = 'inline-block';
         }
     }
     
     function initializePlayer(youtubeUrl, startTime = 0) {
+        if (typeof YT === 'undefined' || !YT.Player) {
+            console.error('YouTube API not ready yet');
+            setTimeout(() => initializePlayer(youtubeUrl, startTime), 1000);
+            return;
+        }
+        
         const videoId = extractVideoId(youtubeUrl);
         
         if (!ytPlayer) {
@@ -2633,17 +2598,770 @@
     });
     </script>
 
-    {% if is_creator %}
-    <div class="creator-actions">
-        <h3>Session Management</h3>
-        <form method="POST" action="{{ url_for('send_reminder', session_id=study_session.id) }}" class="reminder-form">
-            <input type="text" name="reminder_text" placeholder="Type reminder message (e.g., 'Don't forget to bring your notes!')" required class="reminder-input">
-            <button type="submit" class="btn-warning"><i class="fas fa-bell"></i> Send Reminder to All Participants</button>
-        </form>
-        <form method="POST" action="{{ url_for('delete_session', session_id=study_session.id) }}" class="delete-form" onsubmit="return confirm('Are you sure you want to delete this study session? This action cannot be undone.');">
-            <button type="submit" class="btn-danger"><i class="fas fa-trash"></i> Delete Session</button>
-        </form>
+    <!-- Right Sidebar -->
+    <div class="session-sidebar">
+        {% if user_has_rsvp or is_creator %}
+        <!-- Pomodoro Timer - Compact -->
+        <div class="sidebar-widget pomodoro-compact">
+            <div class="widget-header-compact">
+                <h3><i class="fas fa-clock"></i> Focus Timer</h3>
+                <button class="btn-icon" onclick="if(typeof showPomodoroStats === 'function') showPomodoroStats(); else window.location.href='/analytics';"><i class="fas fa-chart-line"></i></button>
+            </div>
+            <div class="timer-circle-compact">
+                <svg class="timer-svg-compact" viewBox="0 0 120 120">
+                    <circle class="timer-bg" cx="60" cy="60" r="54"></circle>
+                    <circle class="timer-progress" id="timerProgress" cx="60" cy="60" r="54"></circle>
+                </svg>
+                <div class="timer-text-compact">
+                    <div id="timerTime">25:00</div>
+                    <div id="timerLabel">Focus</div>
+                </div>
+            </div>
+            <div class="pomodoro-controls-compact">
+                <button class="btn-icon" onclick="if(typeof togglePomodoro === 'function') togglePomodoro();"><i class="fas fa-play" id="pomodoroPlayIcon"></i></button>
+                <button class="btn-icon" onclick="if(typeof resetPomodoro === 'function') resetPomodoro();"><i class="fas fa-redo"></i></button>
+                <button class="btn-icon" onclick="if(typeof showPomodoroSettings === 'function') showPomodoroSettings();"><i class="fas fa-cog"></i></button>
+            </div>
+            <div class="stats-compact">
+                <span><i class="fas fa-fire"></i> <strong id="todayPomodoros">0</strong></span>
+                <span><i class="fas fa-trophy"></i> <strong id="streakDays">0</strong></span>
+            </div>
+        </div>
+
+        <!-- Music Player - Compact -->
+        <div class="sidebar-widget music-compact">
+            <div class="widget-header-compact">
+                <h3><i class="fas fa-music"></i> Study Music</h3>
+                <button class="btn-icon" onclick="if(typeof toggleMusicPanel === 'function') toggleMusicPanel();"><i class="fas fa-list"></i></button>
+            </div>
+            <div class="music-panel" id="musicPanel" style="display: none;">
+                <div class="playlist-grid" id="playlistGrid"></div>
+            </div>
+            <div class="music-controls" id="musicControls" style="display: none;">
+                <div class="now-playing-compact">
+                    <strong id="currentPlaylistName">No music</strong>
+                    <small id="currentPlaylistType"></small>
+                </div>
+                <div class="control-buttons-compact">
+                    <button class="btn-icon" onclick="if(typeof pauseSessionMusic === 'function') pauseSessionMusic();" id="pauseBtn" style="display: none;"><i class="fas fa-pause"></i></button>
+                    <button class="btn-icon" onclick="if(typeof resumeSessionMusic === 'function') resumeSessionMusic();" id="resumeBtn" style="display: none;"><i class="fas fa-play"></i></button>
+                    <button class="btn-icon" onclick="if(typeof stopSessionMusic === 'function') stopSessionMusic();"><i class="fas fa-stop"></i></button>
+                </div>
+            </div>
+            <div id="youtubePlayerContainer" style="display: none;"></div>
+        </div>
+
+        <!-- Participants List - Compact -->
+        <div class="sidebar-widget participants-compact">
+            <h3><i class="fas fa-users"></i> Participants <span class="count-badge">{{ current_count }}/{{ max_participants }}</span></h3>
+            <div class="capacity-bar-compact">
+                <div class="capacity-progress" style="width: {{ (current_count / max_participants * 100)|int }}%"></div>
+            </div>
+            {% if rsvps %}
+                <ul class="participant-list-compact" id="participantList">
+                    {% for rsvp in rsvps %}
+                        <li data-user-id="{{ rsvp.user_id }}" title="{{ rsvp.full_name }}">
+                            <span class="presence-indicator offline" id="presence-{{ rsvp.user_id }}"></span>
+                            <span class="participant-name">{{ rsvp.full_name }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="empty-compact">No participants</p>
+            {% endif %}
+        </div>
+
+        <!-- AI Recommendations - Compact -->
+        <div class="sidebar-widget ai-compact">
+            <div class="widget-header-compact">
+                <h3><i class="fas fa-brain"></i> AI Resources</h3>
+                <button class="btn-icon btn-primary-icon" onclick="generateSessionRecommendations()"><i class="fas fa-sparkles"></i></button>
+            </div>
+            <div id="sessionRecommendations" class="recommendations-compact">
+                <p class="empty-compact">Click <i class="fas fa-sparkles"></i> for recommendations</p>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if is_creator %}
+        <!-- Creator Management -->
+        <div class="sidebar-widget creator-management-compact">
+            <h3><i class="fas fa-cog"></i> Session Management</h3>
+            <form method="POST" action="{{ url_for('send_reminder', session_id=study_session.id) }}" class="reminder-form-compact">
+                <input type="text" name="reminder_text" placeholder="Send reminder..." required class="reminder-input-compact">
+                <button type="submit" class="btn-icon btn-primary-icon" title="Send Reminder"><i class="fas fa-bell"></i></button>
+            </form>
+            <form method="POST" action="{{ url_for('delete_session', session_id=study_session.id) }}" class="delete-form-compact" onsubmit="return confirm('Delete this session?');">
+                <button type="submit" class="btn-danger btn-small-full"><i class="fas fa-trash"></i> Delete Session</button>
+            </form>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
+    </div>
 </div>
+
+<style>
+/* Redesigned Session Detail Layout */
+.session-detail-redesign {
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+/* Compact Header */
+.session-header-compact {
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+.header-main h1 {
+    margin: 0 0 12px 0;
+    font-size: 1.8rem;
+}
+
+.header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.creator-badge {
+    background: var(--bg-primary);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.header-datetime {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.datetime-info {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.datetime-info i {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+.datetime-info strong {
+    display: block;
+    font-size: 1.05rem;
+}
+
+.datetime-info small {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-top: 2px;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.quick-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: white;
+    text-decoration: none;
+    font-size: 1.1rem;
+}
+
+.video-btn {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.whiteboard-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.calendar-btn {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.quick-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.calendar-dropdown-wrapper {
+    position: relative;
+}
+
+.header-extra {
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--bg-primary);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.95rem;
+}
+
+.header-extra i {
+    color: var(--primary-color);
+}
+
+.header-extra a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.header-extra a:hover {
+    text-decoration: underline;
+}
+
+/* RSVP Status Bar */
+.rsvp-bar {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.rsvp-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.participant-count {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.rsvp-status {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.rsvp-status.joined {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+[data-theme="dark"] .rsvp-status.joined {
+    background: #064e3b;
+    color: #6ee7b7;
+}
+
+.rsvp-status.full {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+[data-theme="dark"] .rsvp-status.full {
+    background: #7f1d1d;
+    color: #fca5a5;
+}
+
+.btn-rsvp {
+    padding: 6px 16px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-rsvp:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.capacity-bar-inline {
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.capacity-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--primary-color-dark, #2563eb));
+    transition: width 0.3s ease;
+}
+
+/* 2-Column Grid */
+.session-grid-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+}
+
+.session-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Tab Navigation */
+.tab-navigation {
+    display: flex;
+    gap: 5px;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 20px;
+    background: var(--bg-secondary);
+    padding: 10px 10px 0;
+    border-radius: 12px 12px 0 0;
+}
+
+.tab-btn {
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-primary);
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: var(--bg-primary);
+}
+
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Sidebar Widgets - Compact */
+.sidebar-widget {
+    background: var(--bg-secondary);
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.widget-header-compact {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.widget-header-compact h3 {
+    font-size: 0.95rem;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-icon {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: scale(1.1);
+}
+
+.btn-primary-icon {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Pomodoro - Compact */
+.timer-circle-compact {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 15px auto;
+}
+
+.timer-svg-compact {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.timer-text-compact {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.timer-text-compact div:first-child {
+    font-size: 1.3rem;
+    font-weight: bold;
+}
+
+.timer-text-compact div:last-child {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.pomodoro-controls-compact {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.stats-compact {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Participants - Compact */
+.count-badge {
+    background: var(--primary-color);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.capacity-bar-compact {
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.participant-list-compact {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.participant-list-compact li {
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.participant-list-compact li:hover {
+    background: var(--bg-primary);
+}
+
+.participant-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Music & AI - Compact */
+.now-playing-compact {
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.control-buttons-compact {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+}
+
+.recommendations-compact, .empty-compact {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 10px 0;
+}
+
+/* Session Action Buttons */
+.session-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn-action {
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 500;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: white;
+    font-size: 0.9rem;
+}
+
+.btn-video {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.btn-whiteboard {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.btn-calendar {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.btn-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.calendar-dropdown-container {
+    position: relative;
+}
+
+.calendar-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 5px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    min-width: 200px;
+}
+
+.calendar-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.calendar-option:hover {
+    background: var(--bg-primary);
+}
+
+.calendar-option:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.calendar-option:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+/* Info Tab */
+.session-info-grid {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.info-card {
+    background: var(--bg-secondary);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.info-card > *:last-child {
+    margin-top: auto;
+}
+
+.info-card h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.1rem;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.invite-form-compact {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.invite-form-compact .select-input {
+    flex: 1;
+}
+
+/* Creator Management Compact */
+.creator-management-compact h3 {
+    font-size: 0.95rem;
+    margin: 0 0 12px 0;
+}
+
+.reminder-form-compact {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.reminder-input-compact {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.btn-small-full {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .session-grid-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .session-sidebar {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        display: grid;
+    }
+}
+
+@media (max-width: 768px) {
+    .session-header-compact {
+        padding: 16px;
+    }
+    
+    .header-main h1 {
+        font-size: 1.4rem;
+    }
+    
+    .header-datetime {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .quick-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .session-sidebar {
+        grid-template-columns: 1fr;
+    }
+    
+    .tab-btn {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+    
+    .session-info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+// Tab switching functionality
+document.addEventListener('DOMContentLoaded', () => {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabName = btn.dataset.tab;
+            
+            // Remove active class from all
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            
+            // Add active class to clicked tab
+            btn.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+        });
+    });
+});
+</script>
+
 {% endblock %}

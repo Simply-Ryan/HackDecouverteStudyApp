@@ -164,15 +164,19 @@
   });
 
   // Background sync registration (when available)
-  if ('sync' in registration) {
-    // Register sync when going offline
-    window.addEventListener('offline', () => {
-      navigator.serviceWorker.ready.then((registration) => {
-        return registration.sync.register('sync-data');
-      }).catch((error) => {
-        console.error('Background sync registration failed:', error);
+  navigator.serviceWorker.ready.then((swRegistration) => {
+    if ('sync' in swRegistration) {
+      // Register sync when going offline
+      window.addEventListener('offline', () => {
+        navigator.serviceWorker.ready.then((registration) => {
+          return registration.sync.register('sync-data');
+        }).catch((error) => {
+          console.error('Background sync registration failed:', error);
+        });
       });
-    });
-  }
+    }
+  }).catch((error) => {
+    console.error('Service worker not ready:', error);
+  });
 
 })();

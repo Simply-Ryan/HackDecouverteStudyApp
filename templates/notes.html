@@ -64,7 +64,7 @@
                 
                 <div class="note-meta">
                     <span><i class="fas fa-user"></i> {{ note.author_name }}</span>
-                    <span><i class="fas fa-calendar"></i> {{ note.created_at[:10] }}</span>
+                    <span><i class="fas fa-calendar"></i> {{ note.created_at|format_datetime }}</span>
                     <span><i class="fas fa-comment"></i> {{ note.comment_count }} comments</span>
                 </div>
                 
@@ -165,6 +165,10 @@
     line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+[data-theme="dark"] .note-description {
+    color: #a0aec0;
 }
 
 .note-meta {
