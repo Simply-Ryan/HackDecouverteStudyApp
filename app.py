@@ -238,19 +238,19 @@ def handle_errors(f):
         try:
             return f(*args, **kwargs)
         except sqlite3.IntegrityError as e:
-            print(f\"IntegrityError in {f.__name__}: {str(e)}\")
+            print(f"IntegrityError in {f.__name__}: {str(e)}")
             if request.path.startswith('/api/'):
                 return jsonify({'success': False, 'error': 'Database constraint violation'}), 400
             flash('Operation failed: duplicate or invalid data', 'error')
             return redirect(request.referrer or url_for('index'))
         except ValueError as e:
-            print(f\"ValueError in {f.__name__}: {str(e)}\")
+            print(f"ValueError in {f.__name__}: {str(e)}")
             if request.path.startswith('/api/'):
                 return jsonify({'success': False, 'error': str(e)}), 400
             flash(f'Invalid input: {str(e)}', 'error')
             return redirect(request.referrer or url_for('index'))
         except Exception as e:
-            print(f\"Unexpected error in {f.__name__}: {str(e)}\")
+            print(f"Unexpected error in {f.__name__}: {str(e)}")
             import traceback
             traceback.print_exc()
             if request.path.startswith('/api/'):
@@ -264,7 +264,7 @@ def handle_errors(f):
 # ============================================
 
 def validate_string(value, field_name, min_len=1, max_len=None, allow_empty=False):
-    \"\"\"Validate string input.
+    """Validate string input.
     
     Args:
         value: The string to validate
@@ -278,21 +278,21 @@ def validate_string(value, field_name, min_len=1, max_len=None, allow_empty=Fals
         
     Raises:
         ValueError: If validation fails
-    \"\"\"
+    """
     if not value and not allow_empty:
-        raise ValueError(f\"{field_name} is required\")
+        raise ValueError(f"{field_name} is required")
     
     if value:
         value = value.strip()
         if len(value) < min_len:
-            raise ValueError(f\"{field_name} must be at least {min_len} characters\")
+            raise ValueError(f"{field_name} must be at least {min_len} characters")
         if max_len and len(value) > max_len:
-            raise ValueError(f\"{field_name} must be less than {max_len} characters\")
+            raise ValueError(f"{field_name} must be less than {max_len} characters")
     
     return value
 
 def validate_integer(value, field_name, min_val=None, max_val=None):
-    \"\"\"Validate integer input.
+    """Validate integer input.
     
     Args:
         value: The value to validate
@@ -305,26 +305,26 @@ def validate_integer(value, field_name, min_val=None, max_val=None):
         
     Raises:
         ValueError: If validation fails
-    \"\"\"
+    """
     try:
         val = int(value)
         if min_val is not None and val < min_val:
-            raise ValueError(f\"{field_name} must be at least {min_val}\")
+            raise ValueError(f"{field_name} must be at least {min_val}")
         if max_val is not None and val > max_val:
-            raise ValueError(f\"{field_name} must be at most {max_val}\")
+            raise ValueError(f"{field_name} must be at most {max_val}")
         return val
     except (TypeError, ValueError):
-        raise ValueError(f\"{field_name} must be a valid integer\")
+        raise ValueError(f"{field_name} must be a valid integer")
 
 def sanitize_filename(filename):
-    \"\"\"Sanitize filename to prevent path traversal attacks.
+    """Sanitize filename to prevent path traversal attacks.
     
     Args:
         filename: Original filename
         
     Returns:
         Sanitized filename
-    \"\"\"
+    """
     # Remove path components and dangerous characters
     filename = os.path.basename(filename)
     filename = secure_filename(filename)
@@ -1158,6 +1158,15 @@ def detail(session_id):
             ORDER BY f.uploaded_at DESC
         ''', (session_id,)).fetchall()
         
+        # Fetch folders for this session
+        folders = conn.execute('''
+            SELECT f.*, u.full_name as creator_name
+            FROM file_folders f
+            JOIN users u ON f.created_by = u.id
+            WHERE f.session_id = ?
+            ORDER BY f.name
+        ''', (session_id,)).fetchall()
+        
         # get users for invite dropdown (exclude already invited/joined)
         all_users = []
         if 'user_id' in session and study_session['creator_user_id'] == session['user_id']:
@@ -1209,7 +1218,7 @@ def detail(session_id):
     return render_template('detail.html', study_session=study_session, rsvps=rsvps, messages=messages,
                          current_count=current_count, max_participants=max_participants,
                          is_full=is_full, spots_left=spots_left, user_has_rsvp=user_has_rsvp,
-                         is_creator=is_creator, all_users=all_users, files=files, recordings=recordings)
+                         is_creator=is_creator, all_users=all_users, files=files, folders=folders, recordings=recordings)
 
 # ============================================
 # MESSAGING ROUTES
@@ -1266,12 +1275,17 @@ def post_message(session_id):
         conn.close()
         
         # Broadcast message to all users in the session room via WebSocket
+        # Convert datetime to string for JSON serialization
+        created_at_str = new_message['created_at']
+        if isinstance(created_at_str, datetime):
+            created_at_str = created_at_str.strftime('%Y-%m-%d %H:%M:%S')
+        
         message_data = {
             'id': new_message['id'],
             'full_name': new_message['full_name'],
             'username': new_message['username'],
             'message_text': new_message['message_text'],
-            'created_at': new_message['created_at'],
+            'created_at': created_at_str,
             'user_id': new_message['user_id'],
             'parent_message_id': new_message['parent_message_id'],
             'parent_info': parent_info,
@@ -2956,7 +2970,7 @@ def generate_ai_recommendations():
     
     try:
         # Check if OpenAI is available
-        if not OPENAI_API_KEY or not AI_ENABLED:
+        if not Config.OPENAI_API_KEY or not Config.AI_ENABLED:
             conn.close()
             return jsonify({
                 'success': False,
@@ -2964,7 +2978,7 @@ def generate_ai_recommendations():
             }), 503
         
         # Generate recommendations using OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        client = OpenAI(api_key=Config.OPENAI_API_KEY)
         
         prompt = f"""You are an AI study advisor. Based on the following student context, provide 5 personalized study resource recommendations.
 
@@ -3190,7 +3204,7 @@ def analyze_learning_patterns():
     ''', (user_id,)).fetchone()
     
     try:
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        client = OpenAI(api_key=Config.OPENAI_API_KEY)
         
         prompt = f"""Analyze this student's learning patterns and provide insights:
 
@@ -5976,6 +5990,80 @@ def handle_whiteboard_cursor(data):
         'x': x,
         'y': y
     }, room=room, skip_sid=request.sid)
+
+# ============================================
+# PRESENCE TRACKING
+# ============================================
+
+# Store online users: {user_id: {session_id: socket_id}}
+online_users = {}
+
+@socketio.on('user_online')
+def handle_user_online(data):
+    """Track when user comes online"""
+    user_id = data.get('user_id')
+    session_id = data.get('session_id', 'global')
+    
+    if user_id:
+        if user_id not in online_users:
+            online_users[user_id] = {}
+        online_users[user_id][session_id] = request.sid
+        
+        # Broadcast to all users in the session
+        emit('user_status_changed', {
+            'user_id': user_id,
+            'status': 'online'
+        }, room=f'session_{session_id}', skip_sid=request.sid)
+
+@socketio.on('user_offline')
+def handle_user_offline(data):
+    """Track when user goes offline"""
+    user_id = data.get('user_id')
+    session_id = data.get('session_id', 'global')
+    
+    if user_id and user_id in online_users:
+        if session_id in online_users[user_id]:
+            del online_users[user_id][session_id]
+        
+        if not online_users[user_id]:
+            del online_users[user_id]
+        
+        # Broadcast to all users in the session
+        emit('user_status_changed', {
+            'user_id': user_id,
+            'status': 'offline'
+        }, room=f'session_{session_id}')
+
+@socketio.on('check_user_status')
+def handle_check_user_status(data):
+    """Check if a user is online"""
+    user_id = data.get('user_id')
+    session_id = data.get('session_id', 'global')
+    
+    is_online = user_id in online_users and session_id in online_users.get(user_id, {})
+    
+    emit('user_status_response', {
+        'user_id': user_id,
+        'is_online': is_online
+    })
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Clean up when user disconnects"""
+    # Find and remove user from online_users
+    for user_id in list(online_users.keys()):
+        for session_id in list(online_users[user_id].keys()):
+            if online_users[user_id][session_id] == request.sid:
+                del online_users[user_id][session_id]
+                
+                # Broadcast offline status
+                socketio.emit('user_status_changed', {
+                    'user_id': user_id,
+                    'status': 'offline'
+                }, room=f'session_{session_id}')
+        
+        if not online_users[user_id]:
+            del online_users[user_id]
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)

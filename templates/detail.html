@@ -220,7 +220,8 @@
                     <div class="message-actions">
                         {% if user_has_rsvp %}
                             <label for="quick-file-upload" class="file-upload-btn" title="Upload a file">
-                                <i class="fas fa-folder-open"></i><input type="file" id="quick-file-upload" style="display: none;">
+                                <i class="fas fa-folder-open"></i>
+                                <input type="file" id="quick-file-upload" style="display: none;">
                             </label>
                         {% endif %}
                         <button type="submit" class="btn-primary" id="sendMessageBtn">Send Message</button>
@@ -243,6 +244,46 @@
     const currentUserName = '{{ session.get("full_name", "") }}';
     const isCreator = {{ 'true' if is_creator else 'false' }};
     let isCurrentlyTyping = false; // Move to global scope
+    
+    // ============================================
+    // PRESENCE TRACKING
+    // ============================================
+    
+    // Announce user is online when connected
+    socket.on('connect', function() {
+        if (currentUserId) {
+            socket.emit('user_online', {
+                user_id: currentUserId,
+                session_id: sessionId
+            });
+        }
+    });
+    
+    // Handle user status changes
+    socket.on('user_status_changed', function(data) {
+        const indicator = document.querySelector(`.presence-indicator[data-user-id="${data.user_id}"]`);
+        if (indicator) {
+            if (data.status === 'online') {
+                indicator.classList.remove('offline');
+                indicator.classList.add('online');
+                indicator.title = 'Online';
+            } else {
+                indicator.classList.remove('online');
+                indicator.classList.add('offline');
+                indicator.title = 'Offline';
+            }
+        }
+    });
+    
+    // Announce user is offline when leaving page
+    window.addEventListener('beforeunload', function() {
+        if (currentUserId) {
+            socket.emit('user_offline', {
+                user_id: currentUserId,
+                session_id: sessionId
+            });
+        }
+    });
     
     // real-time chat updates
     (function() {
@@ -779,6 +820,46 @@
         messageTextarea.focus();
     }
 
+    function replyToMessage(messageId, authorName, messageText) {
+        const messageForm = document.getElementById('messageForm');
+        const messageTextarea = document.getElementById('messageTextarea');
+        
+        // Remove any existing reply indicator
+        cancelReply();
+        
+        // Create reply indicator
+        const replyIndicator = document.createElement('div');
+        replyIndicator.className = 'reply-indicator';
+        replyIndicator.innerHTML = `
+            <div class="reply-info">
+                <strong>Replying to ${authorName}</strong>
+                <p>${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}</p>
+            </div>
+            <button type="button" class="cancel-reply" onclick="cancelReply()">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        
+        // Insert before message input
+        messageForm.insertBefore(replyIndicator, messageForm.firstChild);
+        
+        // Store the parent message ID
+        replyToMessageId = messageId;
+        
+        // Add hidden input for parent_message_id
+        let parentInput = messageForm.querySelector('input[name="parent_message_id"]');
+        if (!parentInput) {
+            parentInput = document.createElement('input');
+            parentInput.type = 'hidden';
+            parentInput.name = 'parent_message_id';
+            messageForm.appendChild(parentInput);
+        }
+        parentInput.value = messageId;
+        
+        // Focus textarea
+        messageTextarea.focus();
+    }
+
     function cancelReply() {
         const replyIndicator = document.querySelector('.reply-indicator');
         if (replyIndicator) {
@@ -818,6 +899,25 @@
                 </select>
             </div>
         </div>
+        
+        {% if folders %}
+            <div class="folders-list" id="foldersList">
+                <h3><i class="fas fa-folder"></i> Folders</h3>
+                <div class="folder-cards">
+                {% for folder in folders %}
+                    <div class="folder-card" data-folder-id="{{ folder.id }}">
+                        <div class="folder-icon">
+                            <i class="fas fa-folder"></i>
+                        </div>
+                        <div class="folder-info">
+                            <div class="folder-name">{{ folder.name }}</div>
+                            <div class="folder-meta">Created by {{ folder.creator_name }}</div>
+                        </div>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+        {% endif %}
         
         {% if files %}
             <div class="files-list-horizontal" id="filesList">
@@ -2661,7 +2761,7 @@
                 <ul class="participant-list-compact" id="participantList">
                     {% for rsvp in rsvps %}
                         <li data-user-id="{{ rsvp.user_id }}" title="{{ rsvp.full_name }}">
-                            <span class="presence-indicator offline" id="presence-{{ rsvp.user_id }}"></span>
+                            <span class="presence-indicator offline" data-user-id="{{ rsvp.user_id }}" title="Offline"></span>
                             <span class="participant-name">{{ rsvp.full_name }}</span>
                         </li>
                     {% endfor %}
@@ -2807,6 +2907,40 @@
 
 .calendar-dropdown-wrapper {
     position: relative;
+}
+
+.calendar-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    z-index: 1000;
+    min-width: 220px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.calendar-dropdown a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: all 0.2s;
+    font-size: 0.95rem;
+}
+
+.calendar-dropdown a:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.calendar-dropdown a i {
+    width: 20px;
+    text-align: center;
 }
 
 .header-extra {
@@ -3112,6 +3246,24 @@
     text-overflow: ellipsis;
 }
 
+.presence-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    transition: background-color 0.3s ease;
+}
+
+.presence-indicator.online {
+    background-color: #22c55e;
+    box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+}
+
+.presence-indicator.offline {
+    background-color: #6b7280;
+}
+
 /* Music & AI - Compact */
 .now-playing-compact {
     font-size: 0.85rem;
@@ -3293,6 +3445,133 @@
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s;
+}
+
+/* Folder display styling */
+.folders-list {
+    margin-bottom: 25px;
+}
+
+.folders-list h3 {
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.folder-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.folder-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.folder-card:hover {
+    background: var(--bg-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.folder-icon {
+    font-size: 2rem;
+    color: var(--primary-color);
+}
+
+.folder-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.folder-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.folder-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+/* File upload button styling */
+.file-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--border-color);
+}
+
+.file-upload-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.file-upload-btn i {
+    font-size: 1rem;
+}
+
+/* Reply indicator styling */
+.reply-indicator {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--primary-color);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.reply-info strong {
+    display: block;
+    color: var(--primary-color);
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+
+.reply-info p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+.cancel-reply {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.cancel-reply:hover {
+    background: var(--bg-primary);
+    color: var(--danger-color);
 }
 
 /* Responsive */
