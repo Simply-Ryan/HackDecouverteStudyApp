@@ -651,3 +651,22 @@ CREATE INDEX IF NOT EXISTS idx_user_study_topics_user ON user_study_topics(user_
 CREATE INDEX IF NOT EXISTS idx_user_study_topics_topic ON user_study_topics(topic);
 CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_rec ON recommendation_feedback(recommendation_id);
 CREATE INDEX IF NOT EXISTS idx_learning_patterns_user ON learning_patterns(user_id);
+
+-- OAuth Social Login
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    provider TEXT NOT NULL,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    token_type TEXT DEFAULT 'Bearer',
+    expires_at TIMESTAMP,
+    scope TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, provider)
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user ON oauth_tokens(user_id);

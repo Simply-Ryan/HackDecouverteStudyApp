@@ -28,6 +28,7 @@ from openai import OpenAI
 from config import Config
 from deep_translator import GoogleTranslator
 from langdetect import detect, LangDetectException
+from authlib.integrations.flask_client import OAuth
 
 # ============================================
 # APPLICATION CONFIGURATION
@@ -41,6 +42,20 @@ app.config.from_object(Config)
 
 # WebSocket: Initialize SocketIO for real-time features
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# OAuth Configuration: Initialize OAuth for social login
+oauth = OAuth(app)
+
+# Google OAuth Setup
+google = oauth.register(
+    name='google',
+    client_id=os.getenv('GOOGLE_CLIENT_ID'),
+    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 
 # AI Configuration: Initialize OpenAI client
 openai_client = None
@@ -466,6 +481,130 @@ def logout():
     session.clear()
     flash('You have been logged out.')
     return redirect(url_for('index'))
+
+# ============================================
+# OAUTH SOCIAL LOGIN ROUTES
+# ============================================
+
+@app.route('/login/google')
+def google_login():
+    """Initiate Google OAuth login flow"""
+    redirect_uri = url_for('google_callback', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/login/google/callback')
+def google_callback():
+    """Handle Google OAuth callback"""
+    try:
+        token = google.authorize_access_token()
+        user_info = token.get('userinfo')
+        
+        if not user_info:
+            flash('Failed to get user information from Google.')
+            return redirect(url_for('login'))
+        
+        # Extract user data
+        google_id = user_info.get('sub')
+        email = user_info.get('email')
+        full_name = user_info.get('name')
+        profile_picture = user_info.get('picture')
+        email_verified = user_info.get('email_verified', False)
+        
+        conn = get_db()
+        
+        # Check if user exists with this Google ID
+        existing_user = conn.execute(
+            'SELECT * FROM users WHERE oauth_provider = ? AND oauth_id = ?',
+            ('google', google_id)
+        ).fetchone()
+        
+        if existing_user:
+            # User exists, log them in
+            user_id = existing_user['id']
+            
+            # Update profile picture if changed
+            if profile_picture and profile_picture != existing_user['profile_picture']:
+                conn.execute(
+                    'UPDATE users SET profile_picture = ? WHERE id = ?',
+                    (profile_picture, user_id)
+                )
+                conn.commit()
+        else:
+            # Check if user exists with this email (for account linking)
+            email_user = conn.execute(
+                'SELECT * FROM users WHERE email = ?',
+                (email,)
+            ).fetchone()
+            
+            if email_user:
+                # Link existing account to Google
+                conn.execute('''
+                    UPDATE users 
+                    SET oauth_provider = ?, oauth_id = ?, profile_picture = ?, email_verified = ?
+                    WHERE id = ?
+                ''', ('google', google_id, profile_picture, 1 if email_verified else 0, email_user['id']))
+                conn.commit()
+                user_id = email_user['id']
+                flash('Your account has been linked to Google!')
+            else:
+                # Create new user
+                username = email.split('@')[0]
+                
+                # Ensure unique username
+                base_username = username
+                counter = 1
+                while conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                
+                cursor = conn.execute('''
+                    INSERT INTO users (username, email, full_name, password_hash, 
+                                     oauth_provider, oauth_id, profile_picture, email_verified)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (username, email, full_name, '', 'google', google_id, profile_picture, 1 if email_verified else 0))
+                
+                user_id = cursor.lastrowid
+                
+                # Create default user settings
+                conn.execute('''
+                    INSERT INTO user_settings (user_id) VALUES (?)
+                ''', (user_id,))
+                
+                conn.commit()
+                flash(f'Welcome to StudyFlow, {full_name}!')
+        
+        # Get updated user info
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        
+        # Store OAuth token (optional, for future API calls)
+        conn.execute('''
+            INSERT INTO oauth_tokens (user_id, provider, access_token, token_type, expires_at, scope)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, provider) DO UPDATE SET
+                access_token = excluded.access_token,
+                expires_at = excluded.expires_at,
+                updated_at = CURRENT_TIMESTAMP
+        ''', (
+            user_id,
+            'google',
+            token.get('access_token'),
+            token.get('token_type', 'Bearer'),
+            datetime.now() + timedelta(seconds=token.get('expires_in', 3600)),
+            token.get('scope', '')
+        ))
+        conn.commit()
+        conn.close()
+        
+        # Set session
+        session['user_id'] = user['id']
+        session['username'] = user['username']
+        session['full_name'] = user['full_name']
+        
+        return redirect(url_for('index'))
+        
+    except Exception as e:
+        flash(f'An error occurred during Google login: {str(e)}')
+        return redirect(url_for('login'))
 
 # ============================================
 # SESSION MANAGEMENT ROUTES
